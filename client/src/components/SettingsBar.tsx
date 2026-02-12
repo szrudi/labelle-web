@@ -7,7 +7,11 @@ export function SettingsBar() {
   const update = useLabelStore((s) => s.updateSettings);
 
   return (
-    <div className="bg-white rounded-lg shadow p-3 flex flex-wrap items-center gap-4 text-sm">
+    <details className="bg-white rounded-lg shadow">
+      <summary className="cursor-pointer select-none p-3 text-sm font-medium text-gray-700">
+        Settings
+      </summary>
+      <div className="p-3 pt-0 flex flex-wrap items-center gap-4 text-sm">
       <Field label="Tape (mm)">
         <select
           className="input w-20"
@@ -98,7 +102,8 @@ export function SettingsBar() {
         />
         Show margins
       </label>
-    </div>
+      </div>
+    </details>
   );
 }
 

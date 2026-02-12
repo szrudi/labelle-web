@@ -24,7 +24,7 @@ export function LabelPreview() {
         <canvas
           ref={canvasRef}
           className="border border-gray-200 rounded"
-          style={{ imageRendering: "pixelated" }}
+          style={{ imageRendering: "pixelated", maxWidth: "100%", height: "auto" }}
         />
       </div>
     </div>
