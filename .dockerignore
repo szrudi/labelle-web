@@ -1,0 +1,10 @@
+node_modules
+server/dist
+server/dist-client
+client/tsconfig.app.tsbuildinfo
+client/tsconfig.node.tsbuildinfo
+labelle-main
+.git
+.idea
+.claude
+*.png

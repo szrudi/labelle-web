@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-client/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# IDE
+.idea/
+
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
+output.png
+.bash_history

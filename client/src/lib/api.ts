@@ -1,0 +1,35 @@
+import type { LabelWidget, LabelSettings } from "../types/label";
+
+interface PrintResponse {
+  status: string;
+  message: string;
+}
+
+export async function printLabel(
+  widgets: LabelWidget[],
+  settings: LabelSettings,
+): Promise<PrintResponse> {
+  const res = await fetch("/api/print", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ widgets, settings }),
+  });
+  return res.json() as Promise<PrintResponse>;
+}
+
+export async function fetchServerPreview(
+  widgets: LabelWidget[],
+  settings: LabelSettings,
+): Promise<string> {
+  const res = await fetch("/api/preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ widgets, settings }),
+  });
+  if (!res.ok) {
+    const err = (await res.json()) as PrintResponse;
+    throw new Error(err.message);
+  }
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}

@@ -1,0 +1,101 @@
+import { create } from "zustand";
+import { v4 as uuidv4 } from "uuid";
+import type {
+  LabelWidget,
+  LabelSettings,
+  TextWidget,
+  QrWidget,
+  BarcodeWidget,
+} from "../types/label";
+import { DEFAULT_MARGIN_PX, DEFAULT_FONT_SCALE } from "../lib/constants";
+
+interface LabelStore {
+  widgets: LabelWidget[];
+  settings: LabelSettings;
+
+  addTextWidget: () => void;
+  addQrWidget: () => void;
+  addBarcodeWidget: () => void;
+  removeWidget: (id: string) => void;
+  updateWidget: (id: string, patch: Partial<LabelWidget>) => void;
+  updateSettings: (patch: Partial<LabelSettings>) => void;
+}
+
+export const useLabelStore = create<LabelStore>((set) => ({
+  widgets: [
+    {
+      id: uuidv4(),
+      type: "text",
+      text: "Hello",
+      fontStyle: "regular",
+      fontScale: DEFAULT_FONT_SCALE,
+      frameWidthPx: 0,
+      align: "left",
+    } satisfies TextWidget,
+  ],
+
+  settings: {
+    tapeSizeMm: 12,
+    marginPx: DEFAULT_MARGIN_PX,
+    minLengthMm: 0,
+    justify: "center",
+    foregroundColor: "black",
+    backgroundColor: "white",
+    showMargins: false,
+  },
+
+  addTextWidget: () =>
+    set((s) => ({
+      widgets: [
+        ...s.widgets,
+        {
+          id: uuidv4(),
+          type: "text",
+          text: "",
+          fontStyle: "regular",
+          fontScale: DEFAULT_FONT_SCALE,
+          frameWidthPx: 0,
+          align: "left",
+        } satisfies TextWidget,
+      ],
+    })),
+
+  addQrWidget: () =>
+    set((s) => ({
+      widgets: [
+        ...s.widgets,
+        {
+          id: uuidv4(),
+          type: "qr",
+          content: "",
+        } satisfies QrWidget,
+      ],
+    })),
+
+  addBarcodeWidget: () =>
+    set((s) => ({
+      widgets: [
+        ...s.widgets,
+        {
+          id: uuidv4(),
+          type: "barcode",
+          content: "",
+          barcodeType: "code128",
+          showText: false,
+        } satisfies BarcodeWidget,
+      ],
+    })),
+
+  removeWidget: (id) =>
+    set((s) => ({ widgets: s.widgets.filter((w) => w.id !== id) })),
+
+  updateWidget: (id, patch) =>
+    set((s) => ({
+      widgets: s.widgets.map((w) =>
+        w.id === id ? ({ ...w, ...patch } as LabelWidget) : w,
+      ),
+    })),
+
+  updateSettings: (patch) =>
+    set((s) => ({ settings: { ...s.settings, ...patch } })),
+}));
