@@ -11,12 +11,13 @@ Built as a modern replacement for the original PyQt6 desktop GUI, designed to ru
 - **Barcode widgets** -- CODE128, CODE39, EAN13, EAN8, UPC, ITF, and more, with optional human-readable text
 - **Live canvas preview** -- instant client-side rendering that updates as you type
 - **Label settings** -- tape size, margins, minimum length, justify, foreground/background colors
-- **Print via labelle CLI** -- sends labels to the printer using batch mode over USB
-- **Server-side preview** -- optional pixel-perfect PNG preview via `labelle --output png`
+- **Per-widget font styles** -- each text widget can have its own font style, scale, frame, and alignment
+- **Print via labelle** -- sends labels to the printer using the labelle Python library over USB
+- **Server-side preview** -- optional pixel-perfect PNG preview via labelle's render engines
 
 ## Prerequisites
 
-- **Docker** (recommended) or **Node.js** >= 18 + **labelle** CLI
+- **Docker** (recommended) or **Node.js** >= 18 (for client build) + **Python** >= 3.10 with **labelle** installed
 - A supported DYMO label printer connected via USB (for printing)
 
 ## Quick Start (Docker)
@@ -29,7 +30,7 @@ docker compose up -d
 
 The app will be available at `http://<host>:5000`.
 
-The container includes Python and the labelle CLI -- no host-level Python installation needed. USB passthrough is configured in `compose.yaml` so the container can talk to your DYMO printer.
+The container includes Python and the labelle library -- no host-level Python installation needed. USB passthrough is configured in `compose.yaml` so the container can talk to your DYMO printer.
 
 ### Komodo
 
@@ -44,13 +45,14 @@ docker run -d -p 5000:5000 --privileged -v /dev/bus/usb:/dev/bus/usb labelle-web
 
 ## Quick Start (bare metal)
 
-If you prefer to run without Docker, you need Node.js >= 18 and the [labelle CLI](https://github.com/labelle-org/labelle#installation) installed on the host.
+If you prefer to run without Docker, you need Node.js >= 18 (for building the client) and Python >= 3.10 with [labelle](https://github.com/labelle-org/labelle#installation) installed.
 
 ```bash
 # Install dependencies
 npm install
+pip install -r server/requirements.txt
 
-# Development (Vite dev server + Express with hot reload)
+# Development (Vite dev server + Flask with hot reload)
 npm run dev
 
 # Production build
@@ -60,9 +62,9 @@ npm run build
 npm start
 ```
 
-In development, the Vite dev server runs on `http://localhost:5173` and proxies API requests to the Express backend on port 5000.
+In development, the Vite dev server runs on `http://localhost:5173` and proxies API requests to the Flask backend on port 5000.
 
-In production, Express serves both the API and the built client on port 5000.
+In production, Flask serves both the API and the built client on port 5000.
 
 ## Project Structure
 
@@ -74,10 +76,10 @@ labelle-web/
       lib/                  # Canvas renderers, API client, constants
       state/                # Zustand store
       types/                # TypeScript type definitions
-  server/                   # Express + TypeScript backend
-    src/
-      routes/               # API route handlers
-      lib/                  # CLI argument/batch builders, process runner
+  server/                   # Python/Flask backend
+    app.py                  # Flask application with routes and static serving
+    label_builder.py        # Converts widget JSON to labelle render engines
+    requirements.txt        # Python dependencies
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed design documentation.
@@ -87,13 +89,6 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed design documentation.
 | Environment Variable | Default    | Description                          |
 |---------------------|------------|--------------------------------------|
 | `PORT`              | `5000`     | Server listen port                   |
-| `LABELLE_PATH`      | `labelle`  | Path to the labelle CLI executable   |
-
-If `labelle` is not on your `PATH`, set the full path:
-
-```bash
-LABELLE_PATH=/home/pi/.local/bin/labelle npm start
-```
 
 ## API Endpoints
 
@@ -122,15 +117,14 @@ Print a label to the connected DYMO printer.
 
 ### `POST /api/preview`
 
-Generate a server-side PNG preview using the labelle CLI.
+Generate a server-side PNG preview using labelle's render engines.
 
 Same request body as `/api/print`. Returns `image/png`.
 
 ## Known Limitations
 
-- **Font style is global**: The labelle CLI applies `--style`, `--font-scale`, `--frame-width-px`, and `--align` globally. When multiple text widgets have different styles, only the first text widget's style is sent to the CLI. The client-side preview renders each widget independently, so preview and print may differ when using mixed styles.
 - **Client-side preview is approximate**: The browser canvas uses system fonts and its own barcode/QR renderers. The actual print output uses labelle's Python-based rendering, so there will be minor visual differences. Use the server-side preview endpoint for pixel-perfect output.
-- **Barcode format fallback**: JsBarcode (client-side) supports a subset of barcode types. Unsupported types fall back to CODE128 in preview only; the actual print uses the correct type via the labelle CLI.
+- **Barcode format fallback**: JsBarcode (client-side) supports a subset of barcode types. Unsupported types fall back to CODE128 in preview only; the actual print uses the correct type via labelle.
 - **No image widget**: The desktop GUI supports image widgets; the web version does not (file upload from browser to server would require additional handling).
 
 ## License

@@ -4,14 +4,13 @@
   "private": true,
   "description": "Web interface for labelle DYMO label printers",
   "scripts": {
-    "dev": "concurrently -n client,server -c blue,green \"npm run dev -w client\" \"npm run dev -w server\"",
-    "build": "npm run build -w client && npm run build -w server",
-    "start": "npm start -w server",
-    "install:all": "npm install"
+    "dev": "concurrently -n client,server -c blue,green \"npm run dev -w client\" \"python3 server/app.py\"",
+    "build": "npm run build -w client",
+    "start": "python3 server/app.py",
+    "install:all": "npm install && pip install -r server/requirements.txt"
   },
   "workspaces": [
-    "client",
-    "server"
+    "client"
   ],
   "devDependencies": {
     "concurrently": "^9.1.2"

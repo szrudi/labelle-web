@@ -2,16 +2,16 @@
 
 ## Overview
 
-Labelle Web is a monorepo with two npm workspaces:
+Labelle Web is a monorepo with a React frontend and a Python/Flask backend:
 
 ```
 labelle-web/
-  package.json              # Root: workspaces, concurrently for dev
+  package.json              # Root: npm workspace for client, dev scripts
   client/                   # Frontend: Vite + React + TypeScript + Tailwind
-  server/                   # Backend: Express + TypeScript
+  server/                   # Backend: Python/Flask, imports labelle as a library
 ```
 
-The frontend handles all UI and provides instant canvas-based label preview. The backend is a thin wrapper that translates widget data into labelle CLI batch-mode invocations.
+The frontend handles all UI and provides instant canvas-based label preview. The backend imports labelle's render engines directly, giving full per-widget style support and foreground/background color control.
 
 ## Frontend (`client/`)
 
@@ -101,60 +101,48 @@ All shared types live in `types/label.ts`:
 
 ### Tech Stack
 
-- **Express** with TypeScript
-- **tsx** for development (watch mode with hot reload)
-- **tsc** for production builds
+- **Flask** (Python) with flask-cors
+- **labelle** imported as a Python library (not called as a CLI subprocess)
 
 ### Request Flow
 
 ```
 POST /api/print
-  -> routes/print.ts
-    -> batchBuilder.buildBatchInput(widgets)    # Widgets -> batch stdin
-    -> argBuilder.buildArgs(settings, style)    # Settings -> CLI args
-    -> labelleRunner.runLabelle(args, stdin)    # Spawn process
+  -> app.py (api_print)
+    -> label_builder.print_label(widgets, settings)
+      -> _build_render_engines(widgets)     # Per-widget render engines
+      -> HorizontallyCombinedRenderEngine   # Combine all widgets
+      -> PrintPayloadRenderEngine           # Add margins, justify
+      -> DymoLabeler.print(bitmap)          # Send to printer via USB
   <- { status, message }
+
+POST /api/preview
+  -> app.py (api_preview)
+    -> label_builder.preview_label(widgets, settings)
+      -> _build_render_engines(widgets)     # Per-widget render engines
+      -> HorizontallyCombinedRenderEngine   # Combine all widgets
+      -> PrintPreviewRenderEngine           # Add visual margins/guides
+      -> PNG bytes via PIL
+  <- image/png
 ```
 
-### Batch Builder (`lib/batchBuilder.ts`)
+### Label Builder (`label_builder.py`)
 
-Converts the widget array into labelle's batch-mode stdin format:
+Converts the widget JSON array into labelle `RenderEngine` instances:
 
-```
-LABELLE-LABEL-SPEC-VERSION:1
-TEXT:First line
-NEWLINE:Second line
-QR:https://example.com
-BARCODE#code128:12345
-```
+- **Text widgets** → `TextRenderEngine` with per-widget `font_file_name`, `font_size_ratio`, `frame_width_px`, and `align`. Each text widget gets its own font style via `get_font_path(style=...)`.
+- **QR widgets** → `QrRenderEngine(content)`
+- **Barcode widgets** → `BarcodeRenderEngine(content, barcode_type)` or `BarcodeWithTextRenderEngine(content, font_file_name, barcode_type)` when `showText` is true.
 
-- `TEXT:` starts a new text block
-- `NEWLINE:` adds lines to the current block
-- `QR:` creates a QR code
-- `BARCODE#type:` creates a barcode with the specified encoding
+All engines are combined with `HorizontallyCombinedRenderEngine`, then wrapped with either `PrintPayloadRenderEngine` (for printing) or `PrintPreviewRenderEngine` (for preview).
 
-### Arg Builder (`lib/argBuilder.ts`)
+Settings like `marginPx`, `minLengthMm`, `justify`, `tapeSizeMm`, `foregroundColor`, and `backgroundColor` are applied via `RenderContext` and the payload/preview wrapper.
 
-Maps settings to CLI arguments:
+### Flask App (`app.py`)
 
-| Setting | CLI Arg |
-|---------|---------|
-| tapeSizeMm | `--tape-size-mm` |
-| marginPx | `--margin-px` |
-| minLengthMm | `--min-length` |
-| justify | `--justify` |
-| fontStyle | `--style` |
-| fontScale | `--font-scale` |
-| frameWidthPx | `--frame-width-px` |
-| align | `--align` |
-
-The `--batch` flag is always included. For the preview endpoint, `--output png` is appended.
-
-**Global style limitation**: The CLI only supports one set of style arguments globally. When multiple text widgets exist with different styles, only the first text widget's style (`--style`, `--font-scale`, `--frame-width-px`, `--align`) is sent.
-
-### Labelle Runner (`lib/labelleRunner.ts`)
-
-Spawns the labelle CLI as a child process, pipes batch data to stdin, and collects stdout/stderr. The executable path defaults to `labelle` but can be overridden with the `LABELLE_PATH` environment variable.
+- `POST /api/print` — validates request, calls `print_label()`, returns JSON status
+- `POST /api/preview` — validates request, calls `preview_label()`, returns PNG bytes
+- Static file serving from `dist-client/` with SPA fallback to `index.html`
 
 ## Build and Deployment
 
@@ -162,18 +150,15 @@ Spawns the labelle CLI as a child process, pipes batch data to stdin, and collec
 
 `npm run dev` uses `concurrently` to start:
 - Vite dev server on port 5173 (with HMR)
-- Express dev server on port 5000 (with `tsx watch` for auto-restart)
+- Flask dev server on port 5000
 
-Vite proxies `/api/*` requests to the Express backend.
+Vite proxies `/api/*` requests to the Flask backend.
 
 ### Production
 
-`npm run build` runs:
-1. `tsc -b` in `client/` (type checking)
-2. `vite build` in `client/` (outputs to `server/dist-client/`)
-3. `tsc` in `server/` (compiles to `server/dist/`)
+`npm run build` runs `vite build` in `client/` (outputs to `server/dist-client/`).
 
-`npm start` runs the compiled Express server, which serves both the static client bundle and the API on a single port.
+`npm start` runs the Flask server (`python server/app.py`), which serves both the static client bundle and the API on a single port.
 
 ### Deployment Diagram
 
@@ -182,11 +167,9 @@ Browser (any device on LAN)
     |
     | HTTP :5000
     v
-Express Server (e.g. Raspberry Pi)
+Flask Server (e.g. Raspberry Pi)
     |
-    | spawns process, pipes stdin
-    v
-labelle CLI
+    | labelle library (direct Python import)
     |
     | USB
     v

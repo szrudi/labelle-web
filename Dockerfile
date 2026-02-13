@@ -1,44 +1,39 @@
-# --- Build stage ---
+# --- Build stage: Node.js for client build only ---
 FROM node:20-slim AS build
 
 WORKDIR /app
 
-# Install dependencies first (layer caching)
+# Install client dependencies
 COPY package.json package-lock.json ./
 COPY client/package.json client/
-COPY server/package.json server/
 RUN npm ci
 
-# Copy source and build
+# Build client
 COPY client/ client/
-COPY server/ server/
 RUN npm run build
 
-# --- Runtime stage ---
-FROM node:20-slim
+# --- Runtime stage: Python only ---
+FROM python:3.12-slim
 
-# Install Python + labelle CLI
-# PyQt6 and darkdetect are GUI-only deps; we install labelle fully, then remove them
+# Install libusb for DYMO USB access, then Python dependencies
+# PyQt6 is GUI-only; remove it to save space (darkdetect must stay — imported at load time)
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-       python3 python3-pip libusb-1.0-0 \
-    && python3 -m pip install --no-cache-dir --break-system-packages labelle typing_extensions \
-    && python3 -m pip uninstall -y --break-system-packages PyQt6 PyQt6-Qt6 PyQt6-sip 2>/dev/null || true \
-    && apt-get purge -y --auto-remove python3-pip \
+    && apt-get install -y --no-install-recommends libusb-1.0-0 \
     && rm -rf /var/lib/apt/lists/*
+
+COPY server/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt \
+    && pip uninstall -y PyQt6 PyQt6-Qt6 PyQt6-sip 2>/dev/null || true \
+    && rm /tmp/requirements.txt
 
 WORKDIR /app
 
-# Install only server production dependencies
-COPY package.json package-lock.json ./
-COPY server/package.json server/
-RUN npm ci --workspace=server --omit=dev && npm cache clean --force
+# Copy Python server
+COPY server/app.py server/label_builder.py server/
 
-# Copy built artifacts from build stage
-COPY --from=build /app/server/dist/ server/dist/
+# Copy built client assets from build stage
 COPY --from=build /app/server/dist-client/ server/dist-client/
 
-ENV NODE_ENV=production
 EXPOSE 5000
 
-CMD ["npm", "start"]
+CMD ["python", "server/app.py"]
