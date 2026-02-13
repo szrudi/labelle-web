@@ -74,6 +74,29 @@ In development, the Vite dev server runs on `http://localhost:5173` and proxies 
 
 In production, Flask serves both the API and the built client on port 5000.
 
+### Running as a systemd service
+
+Ideal for a dedicated Raspberry Pi — starts automatically on boot, restarts on failure.
+
+First, complete the bare metal setup above (venv, dependencies, `npm run build`). Then install the service:
+
+```bash
+# Edit the service file if your install path differs from /opt/labelle-web
+sudo cp labelle-web.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable labelle-web
+sudo systemctl start labelle-web
+```
+
+Check status and logs:
+
+```bash
+sudo systemctl status labelle-web
+journalctl -u labelle-web -f
+```
+
+> **Note:** The user running the service needs USB access to the printer. Either add them to the `plugdev` group (`sudo usermod -aG plugdev $USER`) or use the `--privileged` approach from the Docker section.
+
 ## Project Structure
 
 ```
