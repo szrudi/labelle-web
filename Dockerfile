@@ -22,8 +22,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY server/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt \
-    && pip uninstall -y PyQt6 PyQt6-Qt6 PyQt6-sip 2>/dev/null || true \
+RUN pip install --no-cache-dir --no-deps labelle \
+    && pip install --no-cache-dir -r /tmp/requirements.txt \
     && rm /tmp/requirements.txt
 
 WORKDIR /app

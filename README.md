@@ -45,12 +45,17 @@ docker run -d -p 5000:5000 --privileged -v /dev/bus/usb:/dev/bus/usb labelle-web
 
 ## Quick Start (bare metal)
 
-If you prefer to run without Docker, you need Node.js >= 18 (for building the client) and Python >= 3.10 with [labelle](https://github.com/labelle-org/labelle#installation) installed.
+If you prefer to run without Docker, you need Node.js >= 18 (for building the client) and Python >= 3.10.
 
 ```bash
-# Install dependencies
-npm install
+# Create a Python virtual environment and install dependencies
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --no-deps labelle
 pip install -r server/requirements.txt
+
+# Install Node.js dependencies
+npm install
 
 # Development (Vite dev server + Flask with hot reload)
 npm run dev
@@ -61,6 +66,8 @@ npm run build
 # Start production server
 npm start
 ```
+
+> **Note:** Always activate the virtual environment (`source .venv/bin/activate`) before running `npm run dev` or `npm start`, since the Flask backend needs the Python packages.
 
 In development, the Vite dev server runs on `http://localhost:5173` and proxies API requests to the Flask backend on port 5000.
 
