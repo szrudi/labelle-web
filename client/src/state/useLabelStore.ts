@@ -19,6 +19,7 @@ interface LabelStore {
   addBarcodeWidget: () => void;
   addImageWidget: (filename: string) => void;
   removeWidget: (id: string) => void;
+  moveWidget: (fromIndex: number, toIndex: number) => void;
   updateWidget: (id: string, patch: Partial<LabelWidget>) => void;
   updateSettings: (patch: Partial<LabelSettings>) => void;
 }
@@ -102,6 +103,16 @@ export const useLabelStore = create<LabelStore>((set) => ({
 
   removeWidget: (id) =>
     set((s) => ({ widgets: s.widgets.filter((w) => w.id !== id) })),
+
+  moveWidget: (fromIndex, toIndex) =>
+    set((s) => {
+      if (fromIndex === toIndex) return s;
+      const moved = s.widgets[fromIndex];
+      if (!moved) return s;
+      const widgets = s.widgets.filter((_, i) => i !== fromIndex);
+      widgets.splice(toIndex, 0, moved);
+      return { widgets };
+    }),
 
   updateWidget: (id, patch) =>
     set((s) => ({

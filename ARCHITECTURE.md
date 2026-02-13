@@ -40,8 +40,8 @@ The store exposes actions for widget CRUD (`addTextWidget`, `removeWidget`, `upd
 ```
 App
   SettingsBar               # Tape size, margin, min-length, justify, colors, show-margins
-  WidgetList                # Maps widgets[] to WidgetEditor components
-    WidgetEditor            # Type badge + delete button + dispatches to:
+  WidgetList                # Maps widgets[] to WidgetEditor components, drag-and-drop reorder
+    WidgetEditor            # Drag handle + type badge + delete button + dispatches to:
       TextWidgetEditor      # Textarea, font style/scale, frame, alignment
       QrWidgetEditor        # Content input
       BarcodeWidgetEditor   # Content, type dropdown, show-text toggle
