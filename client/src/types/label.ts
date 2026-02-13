@@ -53,7 +53,13 @@ export interface BarcodeWidget {
   showText: boolean;
 }
 
-export type LabelWidget = TextWidget | QrWidget | BarcodeWidget;
+export interface ImageWidget {
+  id: string;
+  type: "image";
+  filename: string;
+}
+
+export type LabelWidget = TextWidget | QrWidget | BarcodeWidget | ImageWidget;
 
 export interface LabelSettings {
   tapeSizeMm: TapeSize;

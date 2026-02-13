@@ -13,6 +13,7 @@ export function LabelPreview() {
     const hasContent = widgets.some((w) => {
       if (w.type === "text") return w.text.trim().length > 0;
       if (w.type === "qr" || w.type === "barcode") return w.content.trim().length > 0;
+      if (w.type === "image") return w.filename.length > 0;
       return false;
     });
 

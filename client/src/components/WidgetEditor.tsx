@@ -2,12 +2,14 @@ import { useLabelStore } from "../state/useLabelStore";
 import { TextWidgetEditor } from "./TextWidgetEditor";
 import { QrWidgetEditor } from "./QrWidgetEditor";
 import { BarcodeWidgetEditor } from "./BarcodeWidgetEditor";
+import { ImageWidgetEditor } from "./ImageWidgetEditor";
 import type { LabelWidget } from "../types/label";
 
 const TYPE_LABELS: Record<LabelWidget["type"], string> = {
   text: "Aa",
   qr: "QR",
   barcode: "|||",
+  image: "IMG",
 };
 
 export function WidgetEditor({ widget }: { widget: LabelWidget }) {
@@ -30,6 +32,7 @@ export function WidgetEditor({ widget }: { widget: LabelWidget }) {
       {widget.type === "text" && <TextWidgetEditor widget={widget} />}
       {widget.type === "qr" && <QrWidgetEditor widget={widget} />}
       {widget.type === "barcode" && <BarcodeWidgetEditor widget={widget} />}
+      {widget.type === "image" && <ImageWidgetEditor widget={widget} />}
     </div>
   );
 }

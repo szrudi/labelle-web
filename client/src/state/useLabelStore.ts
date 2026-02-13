@@ -6,6 +6,7 @@ import type {
   TextWidget,
   QrWidget,
   BarcodeWidget,
+  ImageWidget,
 } from "../types/label";
 import { DEFAULT_MARGIN_PX, DEFAULT_FONT_SCALE } from "../lib/constants";
 
@@ -16,6 +17,7 @@ interface LabelStore {
   addTextWidget: () => void;
   addQrWidget: () => void;
   addBarcodeWidget: () => void;
+  addImageWidget: (filename: string) => void;
   removeWidget: (id: string) => void;
   updateWidget: (id: string, patch: Partial<LabelWidget>) => void;
   updateSettings: (patch: Partial<LabelSettings>) => void;
@@ -83,6 +85,18 @@ export const useLabelStore = create<LabelStore>((set) => ({
           barcodeType: "code128",
           showText: false,
         } satisfies BarcodeWidget,
+      ],
+    })),
+
+  addImageWidget: (filename: string) =>
+    set((s) => ({
+      widgets: [
+        ...s.widgets,
+        {
+          id: uuidv4(),
+          type: "image",
+          filename,
+        } satisfies ImageWidget,
       ],
     })),
 

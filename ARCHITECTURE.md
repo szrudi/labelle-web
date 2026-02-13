@@ -28,7 +28,7 @@ A single Zustand store (`state/useLabelStore.ts`) holds all application state:
 
 ```
 {
-  widgets: LabelWidget[]    # Ordered list of text/QR/barcode widgets
+  widgets: LabelWidget[]    # Ordered list of text/QR/barcode/image widgets
   settings: LabelSettings   # Tape size, margins, justify, colors, etc.
 }
 ```
@@ -45,7 +45,8 @@ App
       TextWidgetEditor      # Textarea, font style/scale, frame, alignment
       QrWidgetEditor        # Content input
       BarcodeWidgetEditor   # Content, type dropdown, show-text toggle
-  AddWidgetMenu             # + Text / + QR / + Barcode buttons
+      ImageWidgetEditor     # Thumbnail, filename, replace button
+  AddWidgetMenu             # + Text / + QR / + Barcode / + Image buttons
   PrintButton               # Print trigger with loading/success/error states
   LabelPreview              # Server-rendered preview image with debounced fetching
 ```
@@ -61,8 +62,9 @@ All shared types live in `types/label.ts`:
 - `TextWidget` -- text, fontStyle, fontScale, frameWidthPx, align
 - `QrWidget` -- content
 - `BarcodeWidget` -- content, barcodeType, showText
+- `ImageWidget` -- filename (server-side reference from upload)
 - `LabelSettings` -- tapeSizeMm, marginPx, minLengthMm, justify, foregroundColor, backgroundColor, showMargins
-- Union type `LabelWidget = TextWidget | QrWidget | BarcodeWidget`
+- Union type `LabelWidget = TextWidget | QrWidget | BarcodeWidget | ImageWidget`
 
 ### Constants
 
@@ -112,6 +114,7 @@ Converts the widget JSON array into labelle `RenderEngine` instances:
 - **Text widgets** → `TextRenderEngine` with per-widget `font_file_name`, `font_size_ratio`, `frame_width_px`, and `align`. Each text widget gets its own font style via `get_font_path(style=...)`.
 - **QR widgets** → `QrRenderEngine(content)`
 - **Barcode widgets** → `BarcodeRenderEngine(content, barcode_type)` or `BarcodeWithTextRenderEngine(content, font_file_name, barcode_type)` when `showText` is true.
+- **Image widgets** → `PictureRenderEngine(picture_path)` where the path is resolved from the uploaded filename.
 
 All engines are combined with `HorizontallyCombinedRenderEngine`, then wrapped with either `PrintPayloadRenderEngine` (for printing) or `PrintPreviewRenderEngine` (for preview).
 
@@ -121,6 +124,8 @@ Settings like `marginPx`, `minLengthMm`, `justify`, `tapeSizeMm`, `foregroundCol
 
 - `POST /api/print` — validates request, calls `print_label()`, returns JSON status
 - `POST /api/preview` — validates request, calls `preview_label()`, returns PNG bytes
+- `POST /api/upload-image` — accepts multipart file upload, saves with UUID filename, returns `{ filename }`
+- `GET /api/uploads/<filename>` — serves uploaded images (used by the editor thumbnail)
 - Static file serving from `dist-client/` with SPA fallback to `index.html`
 
 ## Build and Deployment

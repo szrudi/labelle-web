@@ -1,8 +1,11 @@
 import os
+import tempfile
 import traceback
+import uuid
 
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
+from werkzeug.utils import secure_filename
 
 from label_builder import preview_label, print_label
 
@@ -10,6 +13,7 @@ app = Flask(__name__, static_folder=None)
 CORS(app)
 
 DIST_DIR = os.path.join(os.path.dirname(__file__), "dist-client")
+UPLOAD_DIR = tempfile.mkdtemp(prefix="labelle-uploads-")
 
 
 @app.route("/api/print", methods=["POST"])
@@ -22,7 +26,7 @@ def api_print():
         return jsonify(status="error", message="No widgets provided"), 400
 
     try:
-        print_label(widgets, settings)
+        print_label(widgets, settings, upload_dir=UPLOAD_DIR)
         return jsonify(status="success", message="Label sent to printer.")
     except Exception as e:
         traceback.print_exc()
@@ -39,11 +43,33 @@ def api_preview():
         return jsonify(status="error", message="No widgets provided"), 400
 
     try:
-        png_bytes = preview_label(widgets, settings)
+        png_bytes = preview_label(widgets, settings, upload_dir=UPLOAD_DIR)
         return app.response_class(png_bytes, mimetype="image/png")
     except Exception as e:
         traceback.print_exc()
         return jsonify(status="error", message=str(e)), 500
+
+
+@app.route("/api/upload-image", methods=["POST"])
+def api_upload_image():
+    if "file" not in request.files:
+        return jsonify(status="error", message="No file provided"), 400
+
+    file = request.files["file"]
+    if not file.filename:
+        return jsonify(status="error", message="No file selected"), 400
+
+    ext = os.path.splitext(secure_filename(file.filename))[1] or ".png"
+    filename = f"{uuid.uuid4().hex}{ext}"
+    file.save(os.path.join(UPLOAD_DIR, filename))
+
+    return jsonify(filename=filename)
+
+
+@app.route("/api/uploads/<filename>")
+def api_serve_upload(filename):
+    filename = secure_filename(filename)
+    return send_from_directory(UPLOAD_DIR, filename)
 
 
 # --- Static file serving for production (SPA fallback) ---

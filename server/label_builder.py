@@ -1,3 +1,4 @@
+import os
 from io import BytesIO
 
 from PIL import Image
@@ -19,6 +20,7 @@ from labelle.lib.render_engines.horizontally_combined import (
 )
 from labelle.lib.render_engines.print_payload import PrintPayloadRenderEngine
 from labelle.lib.render_engines.print_preview import PrintPreviewRenderEngine
+from labelle.lib.render_engines.picture import PictureRenderEngine
 from labelle.lib.render_engines.qr import QrRenderEngine
 from labelle.lib.render_engines.render_context import RenderContext
 from labelle.lib.render_engines.render_engine import RenderEngine
@@ -30,7 +32,9 @@ def mm_to_payload_px(mm: float, margin: float) -> float:
     return max(0, (mm * PIXELS_PER_MM) - margin * 2)
 
 
-def _build_render_engines(widgets: list[dict]) -> list[RenderEngine]:
+def _build_render_engines(
+    widgets: list[dict], upload_dir: str = "",
+) -> list[RenderEngine]:
     """Convert a list of widget dicts into labelle RenderEngine instances."""
     engines: list[RenderEngine] = []
     for widget in widgets:
@@ -80,12 +84,19 @@ def _build_render_engines(widgets: list[dict]) -> list[RenderEngine]:
                     BarcodeRenderEngine(content=content, barcode_type=barcode_type)
                 )
 
+        elif widget_type == "image":
+            filename = widget.get("filename", "")
+            if filename and upload_dir:
+                picture_path = os.path.join(upload_dir, filename)
+                if os.path.isfile(picture_path):
+                    engines.append(PictureRenderEngine(picture_path=picture_path))
+
     return engines
 
 
-def print_label(widgets: list[dict], settings: dict) -> None:
+def print_label(widgets: list[dict], settings: dict, upload_dir: str = "") -> None:
     """Build render engines from widgets and print to the connected DYMO printer."""
-    engines = _build_render_engines(widgets)
+    engines = _build_render_engines(widgets, upload_dir)
     if not engines:
         raise ValueError("No renderable widgets provided")
 
@@ -123,9 +134,9 @@ def print_label(widgets: list[dict], settings: dict) -> None:
     dymo_labeler.print(bitmap)
 
 
-def preview_label(widgets: list[dict], settings: dict) -> bytes:
+def preview_label(widgets: list[dict], settings: dict, upload_dir: str = "") -> bytes:
     """Build render engines from widgets and return a PNG preview as bytes."""
-    engines = _build_render_engines(widgets)
+    engines = _build_render_engines(widgets, upload_dir)
     if not engines:
         raise ValueError("No renderable widgets provided")
 

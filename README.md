@@ -1,6 +1,6 @@
 # Labelle Web
 
-A web interface for [labelle](https://github.com/labelle-org/labelle) DYMO label printers. Compose labels with text, QR codes, and barcodes in your browser, with a live server-side preview and one-click printing.
+A web interface for [labelle](https://github.com/labelle-org/labelle) DYMO label printers. Compose labels with text, QR codes, barcodes, and images in your browser, with a live server-side preview and one-click printing.
 
 Built as a modern replacement for the original PyQt6 desktop GUI, designed to run on a headless server (e.g. Raspberry Pi) and be accessed from any device on the network.
 
@@ -9,6 +9,7 @@ Built as a modern replacement for the original PyQt6 desktop GUI, designed to ru
 - **Text widgets** -- multiline text with font style (regular/bold/italic/narrow), scale, frame border, and alignment
 - **QR code widgets** -- encode any text or URL
 - **Barcode widgets** -- CODE128, CODE39, EAN13, EAN8, UPC, ITF, and more, with optional human-readable text
+- **Image widgets** -- upload any image; automatically resized and converted to monochrome for the label
 - **Pixel-perfect preview** -- live server-side rendering via labelle's own render engines, so what you see is exactly what prints
 - **Label settings** -- tape size, margins, minimum length, justify, foreground/background colors
 - **Per-widget font styles** -- each text widget can have its own font style, scale, frame, and alignment
@@ -101,7 +102,8 @@ Print a label to the connected DYMO printer.
   "widgets": [
     { "type": "text", "text": "Hello\nWorld", "fontStyle": "bold", "fontScale": 90, "frameWidthPx": 0, "align": "center" },
     { "type": "qr", "content": "https://example.com" },
-    { "type": "barcode", "content": "12345", "barcodeType": "code128", "showText": true }
+    { "type": "barcode", "content": "12345", "barcodeType": "code128", "showText": true },
+    { "type": "image", "filename": "uploaded-uuid.png" }
   ],
   "settings": {
     "tapeSizeMm": 12,
@@ -120,9 +122,13 @@ Generate a server-side PNG preview using labelle's render engines.
 
 Same request body as `/api/print`. Returns `image/png`.
 
-## Known Limitations
+### `POST /api/upload-image`
 
-- **No image widget**: The desktop GUI supports image widgets; the web version does not (file upload from browser to server would require additional handling).
+Upload an image for use in image widgets. Accepts `multipart/form-data` with a `file` field.
+
+**Response:** `{ "filename": "uuid.png" }`
+
+The returned filename is used in the `image` widget's `filename` field for subsequent print/preview requests.
 
 ## License
 

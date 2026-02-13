@@ -17,6 +17,22 @@ export async function printLabel(
   return res.json() as Promise<PrintResponse>;
 }
 
+export async function uploadImage(
+  file: File,
+): Promise<{ filename: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch("/api/upload-image", {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) {
+    const err = (await res.json()) as PrintResponse;
+    throw new Error(err.message);
+  }
+  return res.json() as Promise<{ filename: string }>;
+}
+
 export async function fetchServerPreview(
   widgets: LabelWidget[],
   settings: LabelSettings,
