@@ -59,9 +59,21 @@ def api_upload_image():
     if not file.filename:
         return jsonify(status="error", message="No file selected"), 400
 
-    ext = os.path.splitext(secure_filename(file.filename))[1] or ".png"
-    filename = f"{uuid.uuid4().hex}{ext}"
-    file.save(os.path.join(UPLOAD_DIR, filename))
+    filename = f"{uuid.uuid4().hex}.png"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+
+    # Flatten transparency onto white background so labelle's grayscale
+    # conversion doesn't turn transparent pixels black.
+    from PIL import Image
+
+    img = Image.open(file.stream)
+    if img.mode in ("RGBA", "LA", "PA"):
+        background = Image.new("RGB", img.size, (255, 255, 255))
+        background.paste(img, mask=img.getchannel("A"))
+        img = background
+    elif img.mode != "RGB":
+        img = img.convert("RGB")
+    img.save(filepath, format="PNG")
 
     return jsonify(filename=filename)
 
