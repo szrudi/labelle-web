@@ -4,6 +4,8 @@ A web interface for [labelle](https://github.com/labelle-org/labelle) DYMO label
 
 Built as a modern replacement for the original PyQt6 desktop GUI, designed to run on a headless server (e.g. Raspberry Pi) and be accessed from any device on the network.
 
+![Labelle Web screenshot](docs/labelle-web-screenshot.png)
+
 ## Features
 
 - **Text widgets** -- multiline text with font style (regular/bold/italic/narrow), scale, frame border, and alignment
