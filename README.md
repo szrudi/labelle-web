@@ -13,6 +13,7 @@ Built as a modern replacement for the original PyQt6 desktop GUI, designed to ru
 - **Pixel-perfect preview** -- live server-side rendering via labelle's own render engines, so what you see is exactly what prints
 - **Label settings** -- tape size, margins, minimum length, justify, foreground/background colors
 - **Per-widget font styles** -- each text widget can have its own font style, scale, frame, and alignment
+- **Save/load labels** -- export label designs to JSON files and load them back, with embedded image data for portability
 - **Print via labelle** -- sends labels to the printer using the labelle Python library over USB
 
 ## Prerequisites

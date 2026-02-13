@@ -22,6 +22,7 @@ interface LabelStore {
   moveWidget: (fromIndex: number, toIndex: number) => void;
   updateWidget: (id: string, patch: Partial<LabelWidget>) => void;
   updateSettings: (patch: Partial<LabelSettings>) => void;
+  loadLabel: (widgets: LabelWidget[], settings: LabelSettings) => void;
 }
 
 export const useLabelStore = create<LabelStore>((set) => ({
@@ -123,4 +124,6 @@ export const useLabelStore = create<LabelStore>((set) => ({
 
   updateSettings: (patch) =>
     set((s) => ({ settings: { ...s.settings, ...patch } })),
+
+  loadLabel: (widgets, settings) => set({ widgets, settings }),
 }));

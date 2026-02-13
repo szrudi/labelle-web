@@ -1,6 +1,7 @@
 import { SettingsBar } from "./components/SettingsBar";
 import { WidgetList } from "./components/WidgetList";
 import { AddWidgetMenu } from "./components/AddWidgetMenu";
+import { SaveLoadButtons } from "./components/SaveLoadButtons";
 import { LabelPreview } from "./components/LabelPreview";
 import { PrintButton } from "./components/PrintButton";
 
@@ -17,6 +18,9 @@ export default function App() {
           <WidgetList />
           <AddWidgetMenu />
           <PrintButton />
+          <div className="pt-4">
+            <SaveLoadButtons />
+          </div>
         </div>
       </div>
     </div>
