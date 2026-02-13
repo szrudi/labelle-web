@@ -142,6 +142,7 @@ def preview_label(widgets: list[dict], settings: dict) -> bytes:
         height_px=dymo_labeler.height_px,
         foreground_color=settings.get("foregroundColor", "black"),
         background_color=settings.get("backgroundColor", "white"),
+        preview_show_margins=settings.get("showMargins", True),
     )
 
     preview = PrintPreviewRenderEngine(

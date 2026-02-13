@@ -1,6 +1,6 @@
 # Labelle Web
 
-A web interface for [labelle](https://github.com/labelle-org/labelle) DYMO label printers. Compose labels with text, QR codes, and barcodes in your browser, with a live canvas preview and one-click printing.
+A web interface for [labelle](https://github.com/labelle-org/labelle) DYMO label printers. Compose labels with text, QR codes, and barcodes in your browser, with a live server-side preview and one-click printing.
 
 Built as a modern replacement for the original PyQt6 desktop GUI, designed to run on a headless server (e.g. Raspberry Pi) and be accessed from any device on the network.
 
@@ -9,11 +9,10 @@ Built as a modern replacement for the original PyQt6 desktop GUI, designed to ru
 - **Text widgets** -- multiline text with font style (regular/bold/italic/narrow), scale, frame border, and alignment
 - **QR code widgets** -- encode any text or URL
 - **Barcode widgets** -- CODE128, CODE39, EAN13, EAN8, UPC, ITF, and more, with optional human-readable text
-- **Live canvas preview** -- instant client-side rendering that updates as you type
+- **Pixel-perfect preview** -- live server-side rendering via labelle's own render engines, so what you see is exactly what prints
 - **Label settings** -- tape size, margins, minimum length, justify, foreground/background colors
 - **Per-widget font styles** -- each text widget can have its own font style, scale, frame, and alignment
 - **Print via labelle** -- sends labels to the printer using the labelle Python library over USB
-- **Server-side preview** -- optional pixel-perfect PNG preview via labelle's render engines
 
 ## Prerequisites
 
@@ -73,7 +72,7 @@ labelle-web/
   client/                   # Vite + React + TypeScript frontend
     src/
       components/           # React UI components
-      lib/                  # Canvas renderers, API client, constants
+      lib/                  # API client, constants
       state/                # Zustand store
       types/                # TypeScript type definitions
   server/                   # Python/Flask backend
@@ -123,8 +122,6 @@ Same request body as `/api/print`. Returns `image/png`.
 
 ## Known Limitations
 
-- **Client-side preview is approximate**: The browser canvas uses system fonts and its own barcode/QR renderers. The actual print output uses labelle's Python-based rendering, so there will be minor visual differences. Use the server-side preview endpoint for pixel-perfect output.
-- **Barcode format fallback**: JsBarcode (client-side) supports a subset of barcode types. Unsupported types fall back to CODE128 in preview only; the actual print uses the correct type via labelle.
 - **No image widget**: The desktop GUI supports image widgets; the web version does not (file upload from browser to server would require additional handling).
 
 ## License

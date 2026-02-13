@@ -11,7 +11,7 @@ labelle-web/
   server/                   # Backend: Python/Flask, imports labelle as a library
 ```
 
-The frontend handles all UI and provides instant canvas-based label preview. The backend imports labelle's render engines directly, giving full per-widget style support and foreground/background color control.
+The frontend handles all UI. Label preview images are rendered server-side by the backend using labelle's render engines directly, giving pixel-perfect output that matches what will be printed.
 
 ## Frontend (`client/`)
 
@@ -21,8 +21,6 @@ The frontend handles all UI and provides instant canvas-based label preview. The
 - **Vite** for dev server and bundling
 - **Tailwind CSS** for styling
 - **Zustand** for state management
-- **qrcode** for QR code generation
-- **JsBarcode** for barcode generation
 
 ### State Management
 
@@ -49,26 +47,12 @@ App
       BarcodeWidgetEditor   # Content, type dropdown, show-text toggle
   AddWidgetMenu             # + Text / + QR / + Barcode buttons
   PrintButton               # Print trigger with loading/success/error states
-  LabelPreview              # Canvas element with debounced rendering
+  LabelPreview              # Server-rendered preview image with debounced fetching
 ```
 
-### Canvas Preview Pipeline
+### Server-Side Preview
 
-The preview re-renders on every state change with a 150ms debounce:
-
-1. Each widget is rendered to an individual `OffscreenCanvas`:
-   - **Text** (`lib/textRenderer.ts`): Measures text, calculates font size from line height and scale, draws with alignment and optional frame border
-   - **QR** (`lib/qrRenderer.ts`): Generates QR modules via the `qrcode` library, scales to tape height
-   - **Barcode** (`lib/barcodeRenderer.ts`): Renders via JsBarcode to a temporary DOM canvas, transfers to OffscreenCanvas
-
-2. The orchestrator (`lib/canvasRenderer.ts`) combines all widget bitmaps:
-   - Places widgets horizontally with 4px padding
-   - Applies left/right margins
-   - Applies justify (left/center/right positioning within the label)
-   - Enforces minimum label length
-   - Fills background color, draws foreground color
-   - Optionally draws red dashed margin guides
-   - Scales everything 4x for crisp display
+The preview updates on every state change with a 300ms debounce. The `LabelPreview` component calls `POST /api/preview` with the current widgets and settings, and displays the returned PNG image. An `AbortController` cancels in-flight requests when state changes again, and previous object URLs are revoked to prevent memory leaks. The preview is pixel-perfect because it uses the same labelle render engines as printing.
 
 ### Type Definitions
 
@@ -82,20 +66,15 @@ All shared types live in `types/label.ts`:
 
 ### Constants
 
-`lib/constants.ts` defines values derived from the labelle Python source:
+`lib/constants.ts` defines shared UI constants:
 
-| Constant | Value | Source |
-|----------|-------|--------|
-| DPI | 180 | labelle `constants.py` |
-| PIXELS_PER_MM | ~7.087 | 180 / 25.4 |
-| Tape 6mm height | 32px | labelle device config |
-| Tape 9mm height | 48px | labelle device config |
-| Tape 12mm height | 64px | labelle device config |
-| Tape 19mm height | 96px | labelle device config |
-| Default margin | 56px | labelle `DEFAULT_MARGIN_PX` |
-| Widget padding | 4px | labelle `HorizontallyCombinedRenderEngine` |
-| Font size ratio | 7/8 | labelle `FONT_SIZERATIO` |
-| Default font scale | 90% | labelle CLI default |
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `TAPE_SIZES` | [6, 9, 12, 19] | Available tape widths in mm |
+| `DEFAULT_MARGIN_PX` | 56 | Default horizontal margin (from labelle) |
+| `DEFAULT_FONT_SCALE` | 90 | Default font scale percentage |
+| `BARCODE_TYPES` | 15 types | Barcode format options for the dropdown |
+| `LABEL_COLORS` | 6 colors | Available foreground/background colors |
 
 ## Backend (`server/`)
 

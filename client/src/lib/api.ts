@@ -20,11 +20,13 @@ export async function printLabel(
 export async function fetchServerPreview(
   widgets: LabelWidget[],
   settings: LabelSettings,
+  signal?: AbortSignal,
 ): Promise<string> {
   const res = await fetch("/api/preview", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ widgets, settings }),
+    signal,
   });
   if (!res.ok) {
     const err = (await res.json()) as PrintResponse;
