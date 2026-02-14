@@ -1,5 +1,6 @@
 flask
 flask-cors
+waitress
 
 # labelle's runtime deps (excluding PyQt6 which is only needed for the desktop GUI)
 platformdirs
