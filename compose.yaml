@@ -5,6 +5,7 @@ services:
       - "5000:5000"
     environment:
       - PORT=5000
+      - PYTHONUNBUFFERED=1
     # USB passthrough for DYMO printer access
     volumes:
       - /dev/bus/usb:/dev/bus/usb
