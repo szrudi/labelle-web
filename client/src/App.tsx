@@ -9,7 +9,6 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-100 p-4">
       <h1 className="text-2xl font-bold text-center mb-4">Labelle Web</h1>
-      <SettingsBar />
       <div className="flex flex-col lg:flex-row gap-4 mt-4">
         <div className="flex-1 min-w-0 lg:order-2">
           <LabelPreview />
@@ -21,6 +20,7 @@ export default function App() {
           <div className="pt-4">
             <SaveLoadButtons />
           </div>
+          <SettingsBar />
         </div>
       </div>
     </div>
