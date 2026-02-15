@@ -4,6 +4,7 @@ import { AddWidgetMenu } from "./components/AddWidgetMenu";
 import { SaveLoadButtons } from "./components/SaveLoadButtons";
 import { LabelPreview } from "./components/LabelPreview";
 import { PrintButton } from "./components/PrintButton";
+import { Footer } from "./components/Footer";
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <SettingsBar />
         </div>
       </div>
+      <Footer />
     </div>
   );
 }
