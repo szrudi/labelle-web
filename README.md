@@ -6,6 +6,16 @@ Built as a modern replacement for the original PyQt6 desktop GUI, designed to ru
 
 ![Labelle Web screenshot](docs/labelle-web-screenshot.png)
 
+## Background Story
+
+I have an older Dymo LabelManager that works perfectly, but it's tethered via USB. I almost bought a new "smart" WiFi label maker, but I really didn't like the proprietary apps or the idea of buying new hardware when my old one still worked fine.
+
+I found the awesome [Labelle](https://github.com/labelle-org/labelle) project (an open-source tool for Dymo printers) and decided to build a lightweight Web UI wrapper around it. Now I have it running on a Raspberry Pi in my closet. I can pull up the interface on my phone, type a label (or upload an image), and print instantly without needing to plug in my laptop.
+
+This is a vibe-coded project - but I've been a software engineer for most of the last 20 years, so I sometimes know what I'm doing. Using AI tools over just the past few weeks, I solved a lot of genuine tensions I've had. Tensions where I had ideas for solutions but not enough time to actually sit down and implement them. With AI tools I write my ideas, carefully review the results, and give new instructions. I'm enjoying solving these long-standing tensions in mere hours!
+
+You can fight against AI usage or learn to embrace it as a new way of working. It's a similar - but bigger - shift to when we switched from simple text editors to IDEs. Go and enjoy this revolution of sorts, have fun!
+
 ## Features
 
 - **Text widgets** -- multiline text with font style (regular/bold/italic/narrow), scale, frame border, and alignment
