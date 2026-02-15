@@ -20,14 +20,30 @@ jobs:
           fetch-depth: 0
 
       - name: Check version and create tag
+        id: tag
         run: |
           VERSION=$(node -p "require('./package.json').version")
           TAG="v${VERSION}"
 
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists, skipping."
+            echo "created=false" >> "$GITHUB_OUTPUT"
           else
             echo "Creating tag $TAG"
             git tag "$TAG"
             git push origin "$TAG"
+            echo "created=true" >> "$GITHUB_OUTPUT"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Trigger Docker build
+        if: steps.tag.outputs.created == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'docker-publish.yml',
+              ref: '${{ steps.tag.outputs.tag }}',
+            });
