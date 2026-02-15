@@ -43,6 +43,8 @@ docker compose up -d
 
 The app will be available at `http://<host>:5000`.
 
+Pre-built images for **amd64** and **arm64** (Raspberry Pi) are published to `ghcr.io/szrudi/labelle-web`. The `compose.yaml` pulls the latest image by default; if you'd rather build locally, run `docker compose up -d --build`.
+
 The container includes Python and the labelle library -- no host-level Python installation needed. USB passthrough is configured in `compose.yaml` so the container can talk to your DYMO printer.
 
 ### Komodo

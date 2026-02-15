@@ -1,5 +1,6 @@
 services:
   labelle-web:
+    image: ghcr.io/szrudi/labelle-web:latest
     build: .
     ports:
       - "5000:5000"
