@@ -174,4 +174,6 @@ export const useLabelStore = create<LabelStore>((set) => ({
       return { batch: { ...s.batch, rows: rows.length ? rows : [{}], selectedRowIndex } };
     }),
 
+  loadLabel: (widgets, settings, batch) =>
+    set({ widgets, settings, batch: batch ?? { ...DEFAULT_BATCH } }),
 }));
