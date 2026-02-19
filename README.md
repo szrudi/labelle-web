@@ -25,7 +25,8 @@ You can fight against AI usage or learn to embrace it as a new way of working. I
 - **Pixel-perfect preview** -- live server-side rendering via labelle's own render engines, so what you see is exactly what prints
 - **Label settings** -- tape size, margins, minimum length, justify, foreground/background colors
 - **Per-widget font styles** -- each text widget can have its own font style, scale, frame, and alignment
-- **Save/load labels** -- export label designs to JSON files and load them back, with embedded image data for portability
+- **Batch print** -- print multiple labels with variable content using `:varname:` placeholders, with a table to fill in values per row, configurable copies and pause time, SSE progress streaming, and cancellation support
+- **Save/load labels** -- export label designs to JSON files and load them back, with embedded image data and batch configuration for portability
 - **Print via labelle** -- sends labels to the printer using the labelle Python library over USB
 
 ## Prerequisites
@@ -117,17 +118,18 @@ journalctl -u labelle-web -f
 labelle-web/
   client/                   # Vite + React + TypeScript frontend
     src/
-      components/           # React UI components
-      lib/                  # API client, constants
+      components/           # React UI components (BatchPanel, PrintButton, etc.)
+      lib/                  # API client, constants, variable substitution
       state/                # Zustand store
       types/                # TypeScript type definitions
   server/                   # Python/Flask backend
     app.py                  # Flask application with routes and static serving
     label_builder.py        # Converts widget JSON to labelle render engines
     requirements.txt        # Python dependencies
+  docs/                     # Documentation and screenshots
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed design documentation.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed design documentation.
 
 ## Configuration
 
@@ -174,6 +176,36 @@ Upload an image for use in image widgets. Accepts `multipart/form-data` with a `
 **Response:** `{ "filename": "uuid.png" }`
 
 The returned filename is used in the `image` widget's `filename` field for subsequent print/preview requests.
+
+### `POST /api/batch-print`
+
+Print multiple labels with variable substitution. Uses Server-Sent Events (SSE) for streaming progress.
+
+**Request body:**
+```json
+{
+  "widgets": [ ... ],
+  "settings": { ... },
+  "rows": [
+    { "name": "Alice", "id": "001" },
+    { "name": "Bob", "id": "002" }
+  ],
+  "copies": 2,
+  "pauseTime": 1.0
+}
+```
+
+Widget text/content fields use `:varname:` placeholders (e.g. `Hello :name:`) which are substituted per row.
+
+**SSE events:** `started` (with jobId, total), `printing`, `printed`, `done`, `cancelled`, `error`
+
+Returns HTTP 409 if another batch job is already running.
+
+### `POST /api/batch-print/cancel`
+
+Cancel a running batch print job. The server finishes the current label then stops.
+
+**Request body:** `{ "jobId": "..." }`
 
 ## License
 
