@@ -61,6 +61,14 @@ export interface ImageWidget {
 
 export type LabelWidget = TextWidget | QrWidget | BarcodeWidget | ImageWidget;
 
+export interface BatchState {
+  enabled: boolean;
+  copies: number;
+  pauseTime: number;
+  rows: Record<string, string>[];
+  selectedRowIndex: number | null;
+}
+
 export interface LabelSettings {
   tapeSizeMm: TapeSize;
   marginPx: number;

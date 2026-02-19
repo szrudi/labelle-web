@@ -1,4 +1,5 @@
 import { SettingsBar } from "./components/SettingsBar";
+import { BatchPanel } from "./components/BatchPanel";
 import { WidgetList } from "./components/WidgetList";
 import { AddWidgetMenu } from "./components/AddWidgetMenu";
 import { SaveLoadButtons } from "./components/SaveLoadButtons";
@@ -21,6 +22,7 @@ export default function App() {
           <div className="pt-4">
             <SaveLoadButtons />
           </div>
+          <BatchPanel />
           <SettingsBar />
         </div>
       </div>

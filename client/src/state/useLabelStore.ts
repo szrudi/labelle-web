@@ -3,12 +3,21 @@ import { v4 as uuidv4 } from "uuid";
 import type {
   LabelWidget,
   LabelSettings,
+  BatchState,
   TextWidget,
   QrWidget,
   BarcodeWidget,
   ImageWidget,
 } from "../types/label";
 import { DEFAULT_MARGIN_PX, DEFAULT_FONT_SCALE } from "../lib/constants";
+
+const DEFAULT_BATCH: BatchState = {
+  enabled: false,
+  copies: 1,
+  pauseTime: 0,
+  rows: [{}],
+  selectedRowIndex: null,
+};
 
 interface LabelStore {
   widgets: LabelWidget[];

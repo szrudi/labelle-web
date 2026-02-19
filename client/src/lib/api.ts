@@ -5,6 +5,15 @@ interface PrintResponse {
   message: string;
 }
 
+export interface BatchEvent {
+  event: "started" | "printing" | "printed" | "done" | "cancelled" | "error";
+  jobId?: string;
+  index?: number;
+  total?: number;
+  printed?: number;
+  message?: string;
+}
+
 export async function printLabel(
   widgets: LabelWidget[],
   settings: LabelSettings,
