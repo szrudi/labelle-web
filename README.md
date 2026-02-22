@@ -25,6 +25,8 @@ You can fight against AI usage or learn to embrace it as a new way of working. I
 - **Pixel-perfect preview** -- live server-side rendering via labelle's own render engines, so what you see is exactly what prints
 - **Label settings** -- tape size, margins, minimum length, justify, foreground/background colors
 - **Per-widget font styles** -- each text widget can have its own font style, scale, frame, and alignment
+- **Multi-printer support** -- automatically detects all connected DYMO printers; select specific printer when multiple are available
+- **Virtual printers** -- configure virtual printers that save labels as PNG files (great for testing, archiving, and development)
 - **Save/load labels** -- export label designs to JSON files and load them back, with embedded image data for portability
 - **Print via labelle** -- sends labels to the printer using the labelle Python library over USB
 
@@ -134,6 +136,43 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed design documentation.
 | Environment Variable | Default    | Description                          |
 |---------------------|------------|--------------------------------------|
 | `PORT`              | `5000`     | Server listen port                   |
+| `VIRTUAL_PRINTERS`    | (none)     | JSON array of virtual printers (see below) |
+
+### Testing with Virtual Printers
+
+Virtual printers allow you to test the multi-printer UI without needing multiple physical printers. They save labels as PNG files to configured directories instead of physically printing.
+
+**Use cases:**
+- Test multi-printer functionality with a single physical printer
+- Archive label output for documentation
+- Development without printer hardware
+- CI/CD testing
+
+**Configuration:**
+
+Set the `VIRTUAL_PRINTERS` environment variable to a JSON array of printer configurations:
+
+```bash
+export VIRTUAL_PRINTERS='[{"name":"Office Printer","path":"./output/office"},{"name":"Warehouse Printer","path":"./output/warehouse"}]'
+```
+
+Each printer configuration requires:
+- `name`: Display name (will appear as "{name} (Virtual)" in UI)
+- `path`: Directory where labels will be saved (created automatically)
+
+**Docker setup:**
+
+```yaml
+# In compose.yaml or docker-compose.yml
+environment:
+  - VIRTUAL_PRINTERS=[{"name":"Office Printer","path":"/app/output/office"},{"name":"Warehouse Printer","path":"/app/output/warehouse"}]
+volumes:
+  - ./output:/app/output  # Mount to access saved labels on host
+```
+
+See `.env.example` for more configuration examples.
+
+**Output format:** Labels are saved as `label_YYYYMMDD_HHMMSS_uuid.png` in the configured directory.
 
 ## API Endpoints
 

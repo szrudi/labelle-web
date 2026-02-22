@@ -25,3 +25,4 @@ Thumbs.db
 *.log
 output.png
 .bash_history
+/output/

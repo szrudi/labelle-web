@@ -8,6 +8,9 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
 from label_builder import preview_label, print_label
+from labelle.lib.devices.device_manager import DeviceManager
+from config import get_virtual_printers
+from virtual_printer import VirtualPrinter
 
 app = Flask(__name__, static_folder=None)
 CORS(app)
@@ -21,12 +24,13 @@ def api_print():
     data = request.get_json(silent=True) or {}
     widgets = data.get("widgets")
     settings = data.get("settings", {})
+    printer_id = settings.get("printerId")  # Optional printer ID from settings
 
     if not widgets or not isinstance(widgets, list) or len(widgets) == 0:
         return jsonify(status="error", message="No widgets provided"), 400
 
     try:
-        print_label(widgets, settings, upload_dir=UPLOAD_DIR)
+        print_label(widgets, settings, upload_dir=UPLOAD_DIR, printer_id=printer_id)
         return jsonify(status="success", message="Label sent to printer.")
     except Exception as e:
         traceback.print_exc()
@@ -82,6 +86,66 @@ def api_upload_image():
 def api_serve_upload(filename):
     filename = secure_filename(filename)
     return send_from_directory(UPLOAD_DIR, filename)
+
+
+@app.route("/api/printers", methods=["GET"])
+def api_printers():
+    """List all available printers: real DYMO printers via USB and configured virtual printers.
+
+    TODO: Future improvements for multi-printer support:
+    - Add printer status/health check (online/offline, tape level)
+    - Cache printer list to avoid repeated USB scans
+    - Add printer capability detection (supported tape sizes, colors)
+    """
+    printers = []
+
+    # Add real USB printers
+    try:
+        device_manager = DeviceManager()
+        device_manager.scan()
+        devices = device_manager.devices
+
+        for dev in devices:
+            # Create unique ID from USB bus and address
+            printer_id = dev.usb_id  # Format: "Bus 001 Device 005: ID 0922:1234"
+
+            # Build friendly name
+            parts = []
+            if dev.manufacturer:
+                parts.append(dev.manufacturer)
+            if dev.product:
+                parts.append(dev.product)
+            if dev.serial_number:
+                parts.append(f"(S/N: {dev.serial_number})")
+
+            name = " ".join(parts) if parts else dev.usb_id
+
+            printers.append({
+                "id": printer_id,
+                "name": name,
+                "vendorProductId": dev.vendor_product_id,
+                "serialNumber": dev.serial_number,
+            })
+    except Exception as e:
+        traceback.print_exc()
+        # Continue to virtual printers even if USB scan fails
+
+    # Add virtual printers from configuration
+    try:
+        virtual_configs = get_virtual_printers()
+        for config in virtual_configs:
+            virtual = VirtualPrinter(config["name"], config["path"])
+            printers.append({
+                "id": virtual.id,
+                "name": virtual.display_name,
+                "vendorProductId": "virtual",
+                "serialNumber": None,
+            })
+    except Exception as e:
+        traceback.print_exc()
+        # Continue even if virtual printer loading fails
+
+    return jsonify(printers=printers)
 
 
 # --- Static file serving for production (SPA fallback) ---
