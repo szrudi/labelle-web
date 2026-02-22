@@ -29,7 +29,7 @@ RUN pip install --no-cache-dir --no-deps labelle \
 WORKDIR /app
 
 # Copy Python server
-COPY server/app.py server/label_builder.py server/
+COPY server/app.py server/label_builder.py server/config.py server/virtual_printer.py server/
 
 # Copy built client assets from build stage
 COPY --from=build /app/server/dist-client/ server/dist-client/

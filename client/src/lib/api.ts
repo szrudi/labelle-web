@@ -1,8 +1,12 @@
-import type { LabelWidget, LabelSettings } from "../types/label";
+import type { LabelWidget, LabelSettings, PrinterInfo } from "../types/label";
 
 interface PrintResponse {
   status: string;
   message: string;
+}
+
+interface PrintersResponse {
+  printers: PrinterInfo[];
 }
 
 export async function printLabel(
@@ -50,4 +54,13 @@ export async function fetchServerPreview(
   }
   const blob = await res.blob();
   return URL.createObjectURL(blob);
+}
+
+export async function fetchPrinters(): Promise<PrinterInfo[]> {
+  const res = await fetch("/api/printers");
+  if (!res.ok) {
+    throw new Error("Failed to fetch printers");
+  }
+  const data = (await res.json()) as PrintersResponse;
+  return data.printers;
 }

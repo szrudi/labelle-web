@@ -61,6 +61,13 @@ export interface ImageWidget {
 
 export type LabelWidget = TextWidget | QrWidget | BarcodeWidget | ImageWidget;
 
+export interface PrinterInfo {
+  id: string;
+  name: string;
+  vendorProductId: string;
+  serialNumber?: string;
+}
+
 export interface LabelSettings {
   tapeSizeMm: TapeSize;
   marginPx: number;
@@ -69,4 +76,5 @@ export interface LabelSettings {
   foregroundColor: LabelColor;
   backgroundColor: LabelColor;
   showMargins: boolean;
+  printerId?: string; // Optional printer ID for multi-printer setups
 }
