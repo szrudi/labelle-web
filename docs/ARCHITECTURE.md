@@ -273,3 +273,13 @@ TODOs documented in code comments:
 - User-defined printer aliases
 - Remember last selected printer per user
 - Printer-specific preset configurations
+
+**USB Power Management:**
+- Toggle USB port power to save energy and reduce printer wear when idle
+- Use `uhubctl` to power off printer USB ports after an idle timeout (e.g. 1 hour since last print)
+- Power on the port when the web page is opened, with a brief delay for printer initialization
+- Detect hub/port dynamically by matching device vendor:product ID (e.g. `0922:1002` for Dymo) rather than hardcoding hub/port paths
+- Requires passwordless sudo for `uhubctl` (sudoers rule on the host)
+- Confirmed working on Raspberry Pi with USB 2.0 hub (2109:3431) that supports per-port power switching (ppps)
+- Handle "powering up" state in UI (spinner/status indicator while printer initializes)
+- Consider per-printer port mapping for multi-printer setups
