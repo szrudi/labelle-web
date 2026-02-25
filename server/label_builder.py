@@ -97,6 +97,31 @@ def _build_render_engines(
     return engines
 
 
+def _render_payload(
+    dymo_labeler: DymoLabeler,
+    render_engine: RenderEngine,
+    settings: dict,
+    justify: Direction,
+    margin_px: float,
+    min_payload_px: float,
+) -> Image.Image:
+    """Render a label bitmap from the given engine and settings."""
+    render_context = RenderContext(
+        height_px=dymo_labeler.height_px,
+        foreground_color=settings.get("foregroundColor", "black"),
+        background_color=settings.get("backgroundColor", "white"),
+    )
+    payload = PrintPayloadRenderEngine(
+        render_engine=render_engine,
+        justify=justify,
+        visible_horizontal_margin_px=margin_px,
+        labeler_margin_px=dymo_labeler.labeler_margin_px,
+        min_width_px=min_payload_px,
+    )
+    bitmap, _ = payload.render_with_meta(render_context)
+    return bitmap
+
+
 def print_label(
     widgets: list[dict], settings: dict, upload_dir: str = "", printer_id: str | None = None
 ) -> None:
@@ -140,21 +165,7 @@ def print_label(
 
         # Use DymoLabeler without device just to get dimensions
         dymo_labeler = DymoLabeler(tape_size_mm=settings.get("tapeSizeMm", 12))
-
-        render_context = RenderContext(
-            height_px=dymo_labeler.height_px,
-            foreground_color=settings.get("foregroundColor", "black"),
-            background_color=settings.get("backgroundColor", "white"),
-        )
-
-        payload = PrintPayloadRenderEngine(
-            render_engine=render_engine,
-            justify=justify,
-            visible_horizontal_margin_px=margin_px,
-            labeler_margin_px=dymo_labeler.labeler_margin_px,
-            min_width_px=min_payload_px,
-        )
-        bitmap, _ = payload.render_with_meta(render_context)
+        bitmap = _render_payload(dymo_labeler, render_engine, settings, justify, margin_px, min_payload_px)
 
         # Save to file instead of printing
         virtual_printer.save_label(bitmap)
@@ -180,21 +191,7 @@ def print_label(
             tape_size_mm=settings.get("tapeSizeMm", 12),
             device=device,
         )
-
-        render_context = RenderContext(
-            height_px=dymo_labeler.height_px,
-            foreground_color=settings.get("foregroundColor", "black"),
-            background_color=settings.get("backgroundColor", "white"),
-        )
-
-        payload = PrintPayloadRenderEngine(
-            render_engine=render_engine,
-            justify=justify,
-            visible_horizontal_margin_px=margin_px,
-            labeler_margin_px=dymo_labeler.labeler_margin_px,
-            min_width_px=min_payload_px,
-        )
-        bitmap, _ = payload.render_with_meta(render_context)
+        bitmap = _render_payload(dymo_labeler, render_engine, settings, justify, margin_px, min_payload_px)
         dymo_labeler.print(bitmap)
 
 
