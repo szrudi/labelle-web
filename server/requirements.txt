@@ -1,5 +1,6 @@
 flask
 flask-cors
+python-dotenv
 waitress
 
 # labelle's runtime deps (excluding PyQt6 which is only needed for the desktop GUI)

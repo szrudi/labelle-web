@@ -251,13 +251,11 @@ export VIRTUAL_PRINTERS='[
 ]'
 ```
 
-In Docker:
-```yaml
-environment:
-  - VIRTUAL_PRINTERS=[{"name":"Office","path":"/app/output/office"}]
-volumes:
-  - ./output:/app/output
+In Docker, configure in `.env` (loaded via `env_file` in `compose.yaml`):
+```bash
+VIRTUAL_PRINTERS=[{"name":"Office","path":"/app/output/office"}]
 ```
+Uncomment the output volume mount in `compose.yaml` to access saved labels on the host.
 
 ## Future Improvements
 

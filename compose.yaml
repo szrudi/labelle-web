@@ -3,14 +3,10 @@ services:
     image: ghcr.io/szrudi/labelle-web:latest
     build: .
     ports:
-      - "5000:5000"
+      - "${PORT:-5000}:${PORT:-5000}"
+    env_file: .env
     environment:
-      - PORT=5000
       - PYTHONUNBUFFERED=1
-      # Optional: Configure virtual printers for testing multi-printer setup
-      # Format: JSON array of objects with 'name' and 'path' fields
-      # Example (uncomment to enable):
-#      - VIRTUAL_PRINTERS=[{"name":"Office Printer","path":"/app/output/office"},{"name":"Warehouse Printer","path":"/app/output/warehouse"}]
     # USB passthrough for DYMO printer access
     volumes:
       - /dev/bus/usb:/dev/bus/usb

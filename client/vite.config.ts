@@ -2,10 +2,14 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import { readFileSync } from "fs";
+import { config } from "dotenv";
+
+config({ path: path.resolve(__dirname, "../.env") });
 
 const rootPkg = JSON.parse(
   readFileSync(path.resolve(__dirname, "../package.json"), "utf-8"),
 );
+const backendPort = process.env.PORT || "5000";
 
 export default defineConfig({
   define: {
@@ -16,7 +20,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "http://localhost:5000",
+        target: `http://localhost:${backendPort}`,
         changeOrigin: true,
       },
     },
