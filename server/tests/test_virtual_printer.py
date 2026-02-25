@@ -1,0 +1,103 @@
+import os
+
+from PIL import Image
+
+from virtual_printer import VirtualPrinter
+
+
+class TestVirtualPrinterId:
+    def test_basic_name(self):
+        vp = VirtualPrinter("Office", "/tmp/test")
+        assert vp.id == "virtual:Office"
+
+    def test_spaces_replaced_with_underscores(self):
+        vp = VirtualPrinter("My Printer", "/tmp/test")
+        assert vp.id == "virtual:My_Printer"
+
+    def test_parentheses_removed(self):
+        vp = VirtualPrinter("Office (2nd Floor)", "/tmp/test")
+        assert vp.id == "virtual:Office_2nd_Floor"
+
+    def test_virtual_prefix(self):
+        vp = VirtualPrinter("Printer", "/tmp/test")
+        assert vp.id.startswith("virtual:")
+
+    def test_slashes_preserved(self):
+        vp = VirtualPrinter("Floor/2", "/tmp/test")
+        assert vp.id == "virtual:Floor/2"
+
+    def test_dots_preserved(self):
+        vp = VirtualPrinter("v2.0 Printer", "/tmp/test")
+        assert vp.id == "virtual:v2.0_Printer"
+
+    def test_unicode_name(self):
+        vp = VirtualPrinter("Drucker Büro", "/tmp/test")
+        assert vp.id == "virtual:Drucker_Büro"
+
+    def test_emoji_name(self):
+        vp = VirtualPrinter("Printer 🖨️", "/tmp/test")
+        assert vp.id == "virtual:Printer_🖨️"
+
+    def test_empty_name(self):
+        vp = VirtualPrinter("", "/tmp/test")
+        assert vp.id == "virtual:"
+
+
+class TestVirtualPrinterDisplayName:
+    def test_virtual_suffix(self):
+        vp = VirtualPrinter("Office", "/tmp/test")
+        assert vp.display_name == "Office (Virtual)"
+
+    def test_preserves_original_name(self):
+        vp = VirtualPrinter("My Fancy Printer", "/tmp/test")
+        assert vp.display_name == "My Fancy Printer (Virtual)"
+
+
+class TestVirtualPrinterInit:
+    def test_creates_output_directory(self, tmp_output_dir):
+        assert not os.path.exists(tmp_output_dir)
+        VirtualPrinter("Test", tmp_output_dir)
+        assert os.path.isdir(tmp_output_dir)
+
+    def test_existing_directory_ok(self, tmp_path):
+        output_dir = str(tmp_path / "existing")
+        os.makedirs(output_dir)
+        # Should not raise
+        VirtualPrinter("Test", output_dir)
+        assert os.path.isdir(output_dir)
+
+
+class TestVirtualPrinterSaveLabel:
+    def test_saves_png_file(self, tmp_output_dir):
+        vp = VirtualPrinter("Test", tmp_output_dir)
+        bitmap = Image.new("RGB", (200, 50), color="white")
+        filepath = vp.save_label(bitmap)
+
+        assert os.path.isfile(filepath)
+        assert filepath.endswith(".png")
+
+    def test_returns_filepath_in_output_dir(self, tmp_output_dir):
+        vp = VirtualPrinter("Test", tmp_output_dir)
+        bitmap = Image.new("RGB", (200, 50), color="white")
+        filepath = vp.save_label(bitmap)
+
+        assert filepath.startswith(tmp_output_dir)
+
+    def test_saved_image_is_valid_png(self, tmp_output_dir):
+        vp = VirtualPrinter("Test", tmp_output_dir)
+        bitmap = Image.new("RGB", (200, 50), color="white")
+        filepath = vp.save_label(bitmap)
+
+        saved = Image.open(filepath)
+        assert saved.size == (200, 50)
+
+    def test_multiple_saves_create_unique_files(self, tmp_output_dir):
+        vp = VirtualPrinter("Test", tmp_output_dir)
+        bitmap = Image.new("RGB", (200, 50), color="white")
+
+        path1 = vp.save_label(bitmap)
+        path2 = vp.save_label(bitmap)
+
+        assert path1 != path2
+        assert os.path.isfile(path1)
+        assert os.path.isfile(path2)

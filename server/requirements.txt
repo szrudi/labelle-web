@@ -10,3 +10,6 @@ python-barcode>=0.13.1
 pyusb
 darkdetect
 typer>=0.16.0
+
+# dev / test
+pytest
