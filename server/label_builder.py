@@ -170,20 +170,39 @@ def print_label(
         # Save to file instead of printing
         virtual_printer.save_label(bitmap)
     else:
-        # Handle real USB printer
-        device_manager = DeviceManager()
-        device_manager.scan()
+        # Try real USB printer first
+        device = None
+        try:
+            device_manager = DeviceManager()
+            device_manager.scan()
 
-        # TODO: Future improvement - store per-printer settings (tape size, margins, color)
-        if printer_id:
-            # Find printer by USB ID
-            matching_devices = [dev for dev in device_manager.devices if dev.usb_id == printer_id]
-            if not matching_devices:
-                raise ValueError(f"Printer not found: {printer_id}")
-            device = matching_devices[0]
-        else:
-            # Auto-select first available printer
-            device = device_manager.find_and_select_device()
+            # TODO: Future improvement - store per-printer settings (tape size, margins, color)
+            if printer_id:
+                # Find printer by USB ID
+                matching_devices = [dev for dev in device_manager.devices if dev.usb_id == printer_id]
+                if not matching_devices:
+                    raise ValueError(f"Printer not found: {printer_id}")
+                device = matching_devices[0]
+            else:
+                # Auto-select first available USB printer
+                device = device_manager.find_and_select_device()
+        except Exception:
+            # If a specific printer was requested but not found, don't fall back
+            if printer_id:
+                raise
+
+            # Auto-select: fall back to first virtual printer
+            virtual_printers_config = get_virtual_printers()
+            if virtual_printers_config:
+                config = virtual_printers_config[0]
+                virtual_printer = VirtualPrinter(config["name"], config["path"])
+
+                dymo_labeler = DymoLabeler(tape_size_mm=settings.get("tapeSizeMm", 12))
+                bitmap = _render_payload(dymo_labeler, render_engine, settings, justify, margin_px, min_payload_px)
+                virtual_printer.save_label(bitmap)
+                return
+
+            raise ValueError("No printers available (no USB printers found and no virtual printers configured)")
 
         device.setup()
 
