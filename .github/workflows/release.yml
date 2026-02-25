@@ -1,11 +1,10 @@
 name: Tag, build, and publish
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - package.json
+  workflow_run:
+    workflows: [Tests]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 env:
@@ -14,6 +13,9 @@ env:
 
 jobs:
   tag:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
