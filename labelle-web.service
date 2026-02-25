@@ -7,7 +7,7 @@ WorkingDirectory=/opt/labelle-web
 ExecStart=/opt/labelle-web/.venv/bin/python server/app.py
 Restart=on-failure
 RestartSec=5
-Environment=PORT=5000
+EnvironmentFile=-/opt/labelle-web/.env
 
 [Install]
 WantedBy=multi-user.target

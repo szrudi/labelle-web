@@ -7,12 +7,14 @@ import type {
   QrWidget,
   BarcodeWidget,
   ImageWidget,
+  PrinterInfo,
 } from "../types/label";
 import { DEFAULT_MARGIN_PX, DEFAULT_FONT_SCALE } from "../lib/constants";
 
 interface LabelStore {
   widgets: LabelWidget[];
   settings: LabelSettings;
+  availablePrinters: PrinterInfo[];
 
   addTextWidget: () => void;
   addQrWidget: () => void;
@@ -22,6 +24,7 @@ interface LabelStore {
   moveWidget: (fromIndex: number, toIndex: number) => void;
   updateWidget: (id: string, patch: Partial<LabelWidget>) => void;
   updateSettings: (patch: Partial<LabelSettings>) => void;
+  setAvailablePrinters: (printers: PrinterInfo[]) => void;
   loadLabel: (widgets: LabelWidget[], settings: LabelSettings) => void;
 }
 
@@ -47,6 +50,8 @@ export const useLabelStore = create<LabelStore>((set) => ({
     backgroundColor: "white",
     showMargins: false,
   },
+
+  availablePrinters: [],
 
   addTextWidget: () =>
     set((s) => ({
@@ -124,6 +129,8 @@ export const useLabelStore = create<LabelStore>((set) => ({
 
   updateSettings: (patch) =>
     set((s) => ({ settings: { ...s.settings, ...patch } })),
+
+  setAvailablePrinters: (printers) => set({ availablePrinters: printers }),
 
   loadLabel: (widgets, settings) => set({ widgets, settings }),
 }));

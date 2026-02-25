@@ -1,0 +1,275 @@
+# Architecture
+
+## Overview
+
+Labelle Web is a monorepo with a React frontend and a Python/Flask backend:
+
+```
+labelle-web/
+  package.json              # Root: npm workspace for client, dev scripts
+  client/                   # Frontend: Vite + React + TypeScript + Tailwind
+  server/                   # Backend: Python/Flask, imports labelle as a library
+```
+
+The frontend handles all UI. Label preview images are rendered server-side by the backend using labelle's render engines directly, giving pixel-perfect output that matches what will be printed.
+
+## Frontend (`client/`)
+
+### Tech Stack
+
+- **React 19** with TypeScript
+- **Vite** for dev server and bundling
+- **Tailwind CSS** for styling
+- **Zustand** for state management
+
+### State Management
+
+A single Zustand store (`state/useLabelStore.ts`) holds all application state:
+
+```
+{
+  widgets: LabelWidget[]          # Ordered list of text/QR/barcode/image widgets
+  settings: LabelSettings         # Tape size, margins, justify, colors, printerId
+  availablePrinters: PrinterInfo[] # List of detected printers (real + virtual)
+}
+```
+
+The store exposes actions for widget CRUD (`addTextWidget`, `removeWidget`, `updateWidget`), settings updates (`updateSettings`), and printer management (`setAvailablePrinters`). All components subscribe to the store via selectors, so changes automatically trigger re-renders.
+
+### Component Tree
+
+```
+App
+  WidgetList                # Maps widgets[] to WidgetEditor components, drag-and-drop reorder
+    WidgetEditor            # Drag handle + type badge + delete button + dispatches to:
+      TextWidgetEditor      # Textarea, font style/scale, frame, alignment
+      QrWidgetEditor        # Content input
+      BarcodeWidgetEditor   # Content, type dropdown, show-text toggle
+      ImageWidgetEditor     # Thumbnail, filename, replace button
+  AddWidgetMenu             # + Text / + QR / + Barcode / + Image buttons
+  PrintButton               # Print trigger with loading/success/error states
+  SaveLoadButtons           # Save/load label JSON files
+  SettingsBar               # Tape size, margin, min-length, justify, colors, printer selector
+  LabelPreview              # Server-rendered preview image with debounced fetching
+```
+
+### Server-Side Preview
+
+The preview updates on every state change with a 300ms debounce. The `LabelPreview` component calls `POST /api/preview` with the current widgets and settings, and displays the returned PNG image. An `AbortController` cancels in-flight requests when state changes again, and previous object URLs are revoked to prevent memory leaks. The preview is pixel-perfect because it uses the same labelle render engines as printing.
+
+### Multi-Printer UI
+
+The app fetches available printers on load via `GET /api/printers`. If multiple printers are detected, a dropdown selector appears in the Settings panel with:
+- List of all printers (real USB + virtual printers)
+- "Auto-select" option (default)
+- Refresh button to re-scan USB devices
+
+The selected `printerId` is stored in `settings` and sent with print requests.
+
+### Type Definitions
+
+All shared types live in `types/label.ts`:
+
+- `TextWidget` -- text, fontStyle, fontScale, frameWidthPx, align
+- `QrWidget` -- content
+- `BarcodeWidget` -- content, barcodeType, showText
+- `ImageWidget` -- filename (server-side reference from upload)
+- `LabelSettings` -- tapeSizeMm, marginPx, minLengthMm, justify, foregroundColor, backgroundColor, showMargins, printerId
+- `PrinterInfo` -- id, name, vendorProductId, serialNumber
+- Union type `LabelWidget = TextWidget | QrWidget | BarcodeWidget | ImageWidget`
+
+### Constants
+
+`lib/constants.ts` defines shared UI constants:
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `TAPE_SIZES` | [6, 9, 12, 19] | Available tape widths in mm |
+| `DEFAULT_MARGIN_PX` | 56 | Default horizontal margin (from labelle) |
+| `DEFAULT_FONT_SCALE` | 90 | Default font scale percentage |
+| `BARCODE_TYPES` | 15 types | Barcode format options for the dropdown |
+| `LABEL_COLORS` | 6 colors | Available foreground/background colors |
+
+## Backend (`server/`)
+
+### Tech Stack
+
+- **Flask** (Python) with flask-cors
+- **labelle** imported as a Python library (not called as a CLI subprocess)
+
+### Printer System
+
+The backend supports two types of printers:
+
+#### Real USB Printers
+- Detected via `DeviceManager().scan()` from labelle library
+- Identified by USB bus/address (e.g. "Bus 001 Device 005: ID 0922:1234")
+- Send output directly to USB device via labelle's `DymoLabeler.print()`
+
+#### Virtual Printers
+- Configured via `VIRTUAL_PRINTERS` environment variable
+- Identified by `virtual:{sanitized_name}` format (e.g. "virtual:Office_Printer")
+- Save labels as PNG files to configured directories
+- Useful for testing, archiving, and development without hardware
+
+**Printer ID Format:**
+- Real printers: Full USB ID string from device manager
+- Virtual printers: `virtual:{name}` where name has spaces/special chars replaced with underscores
+
+**Output Filename Format (virtual printers):** `label_YYYYMMDD_HHMMSS_uuid.png`
+
+### Request Flow
+
+```
+GET /api/printers
+  -> app.py (api_printers)
+    -> DeviceManager().scan() for real printers
+    -> get_virtual_printers() from config
+    -> Combine both lists
+  <- JSON array of PrinterInfo objects
+
+POST /api/print
+  -> app.py (api_print)
+    -> Extract printerId from settings
+    -> label_builder.print_label(widgets, settings, printerId)
+      -> Check if printerId starts with "virtual:"
+      -> If virtual:
+        -> Find matching VirtualPrinter from config
+        -> _build_render_engines(widgets)
+        -> HorizontallyCombinedRenderEngine
+        -> PrintPayloadRenderEngine
+        -> VirtualPrinter.save_label(bitmap)  # Save to file
+      -> Else (real printer):
+        -> DeviceManager().scan()
+        -> Find device by USB ID or auto-select
+        -> _build_render_engines(widgets)
+        -> HorizontallyCombinedRenderEngine
+        -> PrintPayloadRenderEngine
+        -> DymoLabeler.print(bitmap)  # Send to USB
+  <- { status, message }
+
+POST /api/preview
+  -> app.py (api_preview)
+    -> label_builder.preview_label(widgets, settings)
+      -> _build_render_engines(widgets)
+      -> HorizontallyCombinedRenderEngine
+      -> PrintPreviewRenderEngine
+      -> PNG bytes via PIL
+  <- image/png
+```
+
+### Label Builder (`label_builder.py`)
+
+Converts the widget JSON array into labelle `RenderEngine` instances:
+
+- **Text widgets** → `TextRenderEngine` with per-widget `font_file_name`, `font_size_ratio`, `frame_width_px`, and `align`
+- **QR widgets** → `QrRenderEngine(content)`
+- **Barcode widgets** → `BarcodeRenderEngine(content, barcode_type)` or `BarcodeWithTextRenderEngine(...)` when `showText` is true
+- **Image widgets** → `PictureRenderEngine(picture_path)` where path is resolved from uploaded filename
+
+All engines are combined with `HorizontallyCombinedRenderEngine`, then wrapped with either `PrintPayloadRenderEngine` (for printing) or `PrintPreviewRenderEngine` (for preview).
+
+Settings like `marginPx`, `minLengthMm`, `justify`, `tapeSizeMm`, `foregroundColor`, and `backgroundColor` are applied via `RenderContext` and the payload/preview wrapper.
+
+### Virtual Printer System
+
+**Config Module** (`config.py`):
+- Loads `VIRTUAL_PRINTERS` environment variable
+- Parses JSON array of `{name, path}` objects
+- Validates structure and logs errors
+- Returns empty list if not configured or invalid
+
+**Virtual Printer Class** (`virtual_printer.py`):
+- `__init__(name, output_path)` - Creates printer, ensures directory exists
+- `id` property - Returns `virtual:{sanitized_name}`
+- `display_name` property - Returns `{name} (Virtual)`
+- `save_label(bitmap)` - Saves PIL Image to PNG file with timestamp+UUID filename
+
+### Flask App (`app.py`)
+
+- `GET /api/printers` — Scans USB devices + loads virtual printer config, returns combined list
+- `POST /api/print` — Validates request, extracts printerId, calls `print_label()`, returns JSON status
+- `POST /api/preview` — Validates request, calls `preview_label()`, returns PNG bytes
+- `POST /api/upload-image` — Accepts multipart file upload, saves with UUID filename, returns `{ filename }`
+- `GET /api/uploads/<filename>` — Serves uploaded images (used by the editor thumbnail)
+- Static file serving from `dist-client/` with SPA fallback to `index.html`
+
+## Build and Deployment
+
+### Development
+
+`npm run dev` uses `concurrently` to start:
+- Vite dev server on port 5173 (with HMR)
+- Flask dev server on port 5000
+
+Vite proxies `/api/*` requests to the Flask backend.
+
+### Production
+
+`npm run build` runs `vite build` in `client/` (outputs to `server/dist-client/`).
+
+`npm start` runs the Flask server (`python server/app.py`), which serves both the static client bundle and the API on a single port.
+
+### Deployment Diagram
+
+```
+Browser (any device on LAN)
+    |
+    | HTTP :5000
+    v
+Flask Server (e.g. Raspberry Pi)
+    |
+    +-- labelle library (direct Python import)
+    |   |
+    |   | USB (real printers)
+    |   v
+    | DYMO Label Printer(s)
+    |
+    +-- virtual_printer.py (virtual printers)
+        |
+        | File I/O
+        v
+    Output directories (./output/*)
+```
+
+## Configuration
+
+All configuration via environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | 5000 | Flask server listen port |
+| `PYTHONUNBUFFERED` | (unset) | Python output buffering (set to 1 for Docker logs) |
+| `VIRTUAL_PRINTERS` | (none) | JSON array of virtual printer configs |
+
+### Virtual Printer Configuration Example
+
+```bash
+export VIRTUAL_PRINTERS='[
+  {"name":"Office Printer","path":"./output/office"},
+  {"name":"Warehouse Printer","path":"./output/warehouse"}
+]'
+```
+
+In Docker, configure in `.env` (loaded via `env_file` in `compose.yaml`):
+```bash
+VIRTUAL_PRINTERS=[{"name":"Office","path":"/app/output/office"}]
+```
+Uncomment the output volume mount in `compose.yaml` to access saved labels on the host.
+
+## Future Improvements
+
+TODOs documented in code comments:
+
+**Backend (app.py, label_builder.py):**
+- Per-printer settings persistence (tape size, margins, color)
+- Printer status/health checks (online/offline, tape level)
+- Printer list caching to reduce USB scans
+- Printer capability detection (supported tape sizes, colors)
+
+**Frontend (SettingsBar.tsx):**
+- Printer status indicators in UI
+- Display tape type/color/width for each printer
+- User-defined printer aliases
+- Remember last selected printer per user
+- Printer-specific preset configurations

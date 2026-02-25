@@ -1,10 +1,36 @@
 import { useLabelStore } from "../state/useLabelStore";
 import { TAPE_SIZES, LABEL_COLORS } from "../lib/constants";
+import { fetchPrinters } from "../lib/api";
 import type { TapeSize, Alignment, LabelColor } from "../types/label";
+import { useState } from "react";
 
 export function SettingsBar() {
   const settings = useLabelStore((s) => s.settings);
   const update = useLabelStore((s) => s.updateSettings);
+  const availablePrinters = useLabelStore((s) => s.availablePrinters);
+  const setAvailablePrinters = useLabelStore((s) => s.setAvailablePrinters);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefreshPrinters = async () => {
+    setIsRefreshing(true);
+    try {
+      const printers = await fetchPrinters();
+      setAvailablePrinters(printers);
+    } catch (error) {
+      console.error("Failed to fetch printers:", error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Only show printer selector if multiple printers are detected
+  // TODO: Future improvements for multi-printer UI:
+  // - Show printer status indicators (online/offline)
+  // - Display tape type/color/width for each printer
+  // - Allow users to set friendly aliases for printers
+  // - Remember last selected printer per user
+  // - Support printer-specific preset configurations
+  const showPrinterSelector = availablePrinters.length > 1;
 
   return (
     <details className="bg-white rounded-lg shadow">
@@ -12,6 +38,34 @@ export function SettingsBar() {
         Settings
       </summary>
       <div className="p-3 pt-0 flex flex-wrap items-center gap-4 text-sm">
+      {showPrinterSelector && (
+        <>
+          <Field label="Printer">
+            <select
+              className="input w-48"
+              value={settings.printerId || ""}
+              onChange={(e) =>
+                update({ printerId: e.target.value || undefined })
+              }
+            >
+              <option value="">Auto-select</option>
+              {availablePrinters.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <button
+            className="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50"
+            onClick={handleRefreshPrinters}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? "..." : "↻"}
+          </button>
+        </>
+      )}
+
       <Field label="Tape (mm)">
         <select
           className="input w-20"

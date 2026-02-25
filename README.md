@@ -25,6 +25,8 @@ You can fight against AI usage or learn to embrace it as a new way of working. I
 - **Pixel-perfect preview** -- live server-side rendering via labelle's own render engines, so what you see is exactly what prints
 - **Label settings** -- tape size, margins, minimum length, justify, foreground/background colors
 - **Per-widget font styles** -- each text widget can have its own font style, scale, frame, and alignment
+- **Multi-printer support** -- automatically detects all connected DYMO printers; select specific printer when multiple are available
+- **Virtual printers** -- configure virtual printers that save labels as PNG files (great for testing, archiving, and development)
 - **Save/load labels** -- export label designs to JSON files and load them back, with embedded image data for portability
 - **Print via labelle** -- sends labels to the printer using the labelle Python library over USB
 
@@ -63,14 +65,16 @@ docker run -d -p 5000:5000 --privileged -v /dev/bus/usb:/dev/bus/usb labelle-web
 If you prefer to run without Docker, you need Node.js >= 18 (for building the client) and Python >= 3.10.
 
 ```bash
-# Create a Python virtual environment and install dependencies
+# Create a Python virtual environment and install labelle
 python3 -m venv .venv
-source .venv/bin/activate
-pip install --no-deps labelle
-pip install -r server/requirements.txt
+.venv/bin/pip install --no-deps labelle
 
-# Install Node.js dependencies
-npm install
+# Install all dependencies (Node.js + Python)
+npm run install:all
+
+# Optional: configure environment (virtual printers, port, etc.)
+cp .env.example .env
+# Edit .env to your needs
 
 # Development (Vite dev server + Flask with hot reload)
 npm run dev
@@ -80,13 +84,16 @@ npm run build
 
 # Start production server
 npm start
+
+# Run tests
+npm test
 ```
 
-> **Note:** Always activate the virtual environment (`source .venv/bin/activate`) before running `npm run dev` or `npm start`, since the Flask backend needs the Python packages.
+In development, the Vite dev server runs on `http://localhost:5173` and proxies API requests to the Flask backend on the configured `PORT`.
 
-In development, the Vite dev server runs on `http://localhost:5173` and proxies API requests to the Flask backend on port 5000.
+In production, Flask serves both the API and the built client on the configured `PORT` (default 5000).
 
-In production, Flask serves both the API and the built client on port 5000.
+> **Note:** If you previously ran with Docker, the virtual printer output directories may be owned by root. Fix with: `sudo chown -R $USER output/`
 
 ### Running as a systemd service
 
@@ -124,16 +131,53 @@ labelle-web/
   server/                   # Python/Flask backend
     app.py                  # Flask application with routes and static serving
     label_builder.py        # Converts widget JSON to labelle render engines
+    config.py               # Environment-based configuration (virtual printers)
+    virtual_printer.py      # Virtual printer implementation (saves PNGs to disk)
     requirements.txt        # Python dependencies
+    tests/                  # Backend tests (pytest)
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed design documentation.
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed design documentation.
 
 ## Configuration
 
 | Environment Variable | Default    | Description                          |
 |---------------------|------------|--------------------------------------|
 | `PORT`              | `5000`     | Server listen port                   |
+| `VIRTUAL_PRINTERS`    | (none)     | JSON array of virtual printers (see below) |
+
+### Testing with Virtual Printers
+
+Virtual printers allow you to test the multi-printer UI without needing multiple physical printers. They save labels as PNG files to configured directories instead of physically printing.
+
+**Use cases:**
+- Test multi-printer functionality with a single physical printer
+- Archive label output for documentation
+- Development without printer hardware
+- CI/CD testing
+
+**Configuration:**
+
+Set the `VIRTUAL_PRINTERS` environment variable to a JSON array of printer configurations:
+
+```bash
+export VIRTUAL_PRINTERS='[{"name":"Office Printer","path":"./output/office"},{"name":"Warehouse Printer","path":"./output/warehouse"}]'
+```
+
+Each printer configuration requires:
+- `name`: Display name (will appear as "{name} (Virtual)" in UI)
+- `path`: Directory where labels will be saved (created automatically)
+
+**Docker setup:**
+
+Configure virtual printers in your `.env` file (see `.env.example` for examples). The `compose.yaml` loads it automatically via `env_file`. To access saved labels on the host, uncomment the output volume mount in `compose.yaml`:
+
+```yaml
+volumes:
+  - ./output:/app/output
+```
+
+**Output format:** Labels are saved as `label_YYYYMMDD_HHMMSS_uuid.png` in the configured directory.
 
 ## API Endpoints
 
