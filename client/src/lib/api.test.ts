@@ -1,12 +1,31 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fetchPrinters } from "./api";
+import { fetchPrinters, printLabel, fetchServerPreview, uploadImage } from "./api";
+import type { LabelWidget, LabelSettings } from "../types/label";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
+const mockCreateObjectURL = vi.fn(() => "blob:http://localhost/fake-url");
+vi.stubGlobal("URL", { createObjectURL: mockCreateObjectURL });
+
 beforeEach(() => {
   mockFetch.mockReset();
+  mockCreateObjectURL.mockClear();
 });
+
+const sampleWidgets: LabelWidget[] = [
+  { id: "1", type: "text", text: "Hello", fontStyle: "regular", fontScale: 90, frameWidthPx: 0, align: "left" },
+];
+
+const sampleSettings: LabelSettings = {
+  tapeSizeMm: 12,
+  marginPx: 56,
+  minLengthMm: 0,
+  justify: "center",
+  foregroundColor: "black",
+  backgroundColor: "white",
+  showMargins: false,
+};
 
 describe("fetchPrinters", () => {
   it("returns printers from the API", async () => {
@@ -48,5 +67,99 @@ describe("fetchPrinters", () => {
     mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
 
     await expect(fetchPrinters()).rejects.toThrow("Failed to fetch");
+  });
+});
+
+describe("printLabel", () => {
+  it("sends POST to /api/print with widgets and settings", async () => {
+    const responseData = { status: "success", message: "Label sent to printer." };
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => responseData,
+    });
+
+    const result = await printLabel(sampleWidgets, sampleSettings);
+
+    expect(mockFetch).toHaveBeenCalledWith("/api/print", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ widgets: sampleWidgets, settings: sampleSettings }),
+    });
+    expect(result).toEqual(responseData);
+  });
+});
+
+describe("fetchServerPreview", () => {
+  it("sends POST to /api/preview and returns object URL", async () => {
+    const fakeBlob = new Blob(["fake-png"], { type: "image/png" });
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      blob: async () => fakeBlob,
+    });
+
+    const result = await fetchServerPreview(sampleWidgets, sampleSettings);
+
+    expect(mockFetch).toHaveBeenCalledWith("/api/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ widgets: sampleWidgets, settings: sampleSettings }),
+      signal: undefined,
+    });
+    expect(mockCreateObjectURL).toHaveBeenCalledWith(fakeBlob);
+    expect(result).toBe("blob:http://localhost/fake-url");
+  });
+
+  it("throws on error response", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ status: "error", message: "No widgets provided" }),
+    });
+
+    await expect(fetchServerPreview(sampleWidgets, sampleSettings)).rejects.toThrow(
+      "No widgets provided",
+    );
+  });
+
+  it("passes abort signal to fetch", async () => {
+    const controller = new AbortController();
+    const fakeBlob = new Blob(["fake-png"]);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      blob: async () => fakeBlob,
+    });
+
+    await fetchServerPreview(sampleWidgets, sampleSettings, controller.signal);
+
+    expect(mockFetch).toHaveBeenCalledWith("/api/preview", expect.objectContaining({
+      signal: controller.signal,
+    }));
+  });
+});
+
+describe("uploadImage", () => {
+  it("sends POST to /api/upload-image with FormData", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ filename: "abc123.png" }),
+    });
+
+    const file = new File(["fake-image"], "test.png", { type: "image/png" });
+    const result = await uploadImage(file);
+
+    expect(result).toEqual({ filename: "abc123.png" });
+    expect(mockFetch).toHaveBeenCalledWith("/api/upload-image", {
+      method: "POST",
+      body: expect.any(FormData),
+    });
+  });
+
+  it("throws with server error message on failure", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ status: "error", message: "No file provided" }),
+    });
+
+    const file = new File(["fake"], "test.png", { type: "image/png" });
+    await expect(uploadImage(file)).rejects.toThrow("No file provided");
   });
 });

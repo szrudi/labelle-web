@@ -1,5 +1,7 @@
 # Labelle Web
 
+[![Tests](https://github.com/szrudi/labelle-web/actions/workflows/test.yml/badge.svg)](https://github.com/szrudi/labelle-web/actions/workflows/test.yml)
+
 A web interface for [labelle](https://github.com/labelle-org/labelle) DYMO label printers. Compose labels with text, QR codes, barcodes, and images in your browser, with a live server-side preview and one-click printing.
 
 Built as a modern replacement for the original PyQt6 desktop GUI, designed to run on a headless server (e.g. Raspberry Pi) and be accessed from any device on the network.
