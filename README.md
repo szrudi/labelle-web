@@ -134,7 +134,7 @@ labelle-web/
     app.py                  # Flask application with routes and static serving
     label_builder.py        # Converts widget JSON to labelle render engines
     config.py               # Environment-based configuration (virtual printers)
-    virtual_printer.py      # Virtual printer implementation (saves PNGs to disk)
+    virtual_printer.py      # Virtual printer implementation (saves PNGs/JSON to disk)
     requirements.txt        # Python dependencies
     tests/                  # Backend tests (pytest)
 ```
@@ -166,20 +166,21 @@ Set the `VIRTUAL_PRINTERS` environment variable to a JSON array of printer confi
 export VIRTUAL_PRINTERS='[{"name":"Office Printer","path":"./output/office"},{"name":"Warehouse Printer","path":"./output/warehouse"}]'
 ```
 
-Each printer configuration requires:
+Each printer configuration has the following fields:
 - `name`: Display name (will appear as "{name} (Virtual)" in UI)
-- `path`: Directory where labels will be saved (created automatically)
+- `path`: Directory where output will be saved (created automatically)
+- `output` *(optional)*: What to save — `"image"` (default), `"json"`, or `"both"`. `"image"` saves a color preview PNG, `"json"` saves the label data for re-importing later.
+
+```bash
+# Example with output mode:
+export VIRTUAL_PRINTERS='[{"name":"Archive","path":"./output/archive","output":"both"}]'
+```
 
 **Docker setup:**
 
-Configure virtual printers in your `.env` file (see `.env.example` for examples). The `compose.yaml` loads it automatically via `env_file`. To access saved labels on the host, uncomment the output volume mount in `compose.yaml`:
+Configure virtual printers in your `.env` file (see `.env.example` for examples). The `compose.yaml` loads it automatically via `env_file`. The `./output` directory is mounted into the container by default, so saved labels appear on the host.
 
-```yaml
-volumes:
-  - ./output:/app/output
-```
-
-**Output format:** Labels are saved as `label_YYYYMMDD_HHMMSS_uuid.png` in the configured directory.
+**Output format:** Files are saved as `label_YYYYMMDD_HHMMSS_uuid.png` / `.json` in the configured directory.
 
 ## API Endpoints
 

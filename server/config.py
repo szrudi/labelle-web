@@ -9,12 +9,16 @@ import os
 
 LOG = logging.getLogger(__name__)
 
+VALID_OUTPUT_MODES = {"image", "json", "both"}
+
 
 def get_virtual_printers() -> list[dict]:
     """Load virtual printer configuration from VIRTUAL_PRINTERS environment variable.
 
-    Expected format: JSON array of objects with 'name' and 'path' fields.
-    Example: [{"name": "Office Printer", "path": "./output/office"}]
+    Expected format: JSON array of objects with 'name', 'path', and optional 'output' fields.
+    Example: [{"name": "Office Printer", "path": "./output/office", "output": "both"}]
+
+    The 'output' field controls what files are saved: "image" (default), "json", or "both".
 
     Returns:
         List of virtual printer configuration dictionaries.
@@ -39,6 +43,13 @@ def get_virtual_printers() -> list[dict]:
             if "name" not in printer or "path" not in printer:
                 LOG.warning(f"Virtual printer missing 'name' or 'path': {printer}")
                 continue
+
+            output = printer.get("output", "image")
+            if output not in VALID_OUTPUT_MODES:
+                LOG.warning(f"Invalid output mode '{output}' for virtual printer '{printer['name']}' (must be one of {VALID_OUTPUT_MODES})")
+                continue
+            printer.setdefault("output", "image")
+
             valid_printers.append(printer)
 
         LOG.info(f"Loaded {len(valid_printers)} virtual printer(s) from config")
