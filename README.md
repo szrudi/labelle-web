@@ -28,7 +28,7 @@ You can fight against AI usage or learn to embrace it as a new way of working. I
 - **Label settings** -- tape size, margins, minimum length, justify, foreground/background colors
 - **Per-widget font styles** -- each text widget can have its own font style, scale, frame, and alignment
 - **Multi-printer support** -- automatically detects all connected DYMO printers; select specific printer when multiple are available
-- **Virtual printers** -- configure virtual printers that save labels as PNG files (great for testing, archiving, and development)
+- **Virtual printers** -- configure virtual printers that save labels as PNG images, JSON data, or both (great for testing, archiving, and development)
 - **Save/load labels** -- export label designs to JSON files and load them back, with embedded image data for portability
 - **Print via labelle** -- sends labels to the printer using the labelle Python library over USB
 
@@ -132,7 +132,8 @@ labelle-web/
       types/                # TypeScript type definitions
   server/                   # Python/Flask backend
     app.py                  # Flask application with routes and static serving
-    label_builder.py        # Converts widget JSON to labelle render engines
+    label_builder.py        # Converts widget JSON to labelle render engines (pure rendering)
+    printer_service.py      # Printer resolution and dispatch (USB + virtual)
     config.py               # Environment-based configuration (virtual printers)
     virtual_printer.py      # Virtual printer implementation (saves PNGs/JSON to disk)
     requirements.txt        # Python dependencies
@@ -143,10 +144,10 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed design documentation.
 
 ## Configuration
 
-| Environment Variable | Default    | Description                          |
-|---------------------|------------|--------------------------------------|
-| `PORT`              | `5000`     | Server listen port                   |
-| `VIRTUAL_PRINTERS`    | (none)     | JSON array of virtual printers (see below) |
+| Environment Variable | Default | Description                                |
+|----------------------|---------|--------------------------------------------|
+| `PORT`               | `5000`  | Server listen port                         |
+| `VIRTUAL_PRINTERS`   | (none)  | JSON array of virtual printers (see below) |
 
 ### Testing with Virtual Printers
 
