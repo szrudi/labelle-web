@@ -111,7 +111,7 @@ jobs:
           echo "--- POST /api/preview ---"
           curl -sf -X POST http://localhost:5000/api/preview \
             -H 'Content-Type: application/json' \
-            -d '{"widgets":[{"type":"text","content":"smoke test"}],"settings":{}}' \
+            -d '{"widgets":[{"type":"text","text":"smoke test","id":"1"}],"settings":{"tapeSizeMm":12}}' \
             -o /dev/null -w "HTTP %{http_code}, %{size_download} bytes\n"
 
           echo "--- GET / ---"

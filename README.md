@@ -89,6 +89,9 @@ npm start
 
 # Run tests
 npm test
+
+# Run only server tests (includes smoke tests)
+npm run test:server
 ```
 
 In development, the Vite dev server runs on `http://localhost:5173` and proxies API requests to the Flask backend on the configured `PORT`.
