@@ -51,7 +51,7 @@ class VirtualPrinter:
         unique_id = uuid.uuid4().hex[:8]
         return os.path.join(self.output_path, f"label_{timestamp}_{unique_id}")
 
-    def save_preview(self, bitmap: Image.Image) -> str:
+    def save_preview(self, bitmap: Image.Image, base_path: str | None = None) -> str:
         """Save preview bitmap as PNG.
 
         Returns:
@@ -60,7 +60,7 @@ class VirtualPrinter:
         Raises:
             IOError: If file cannot be saved.
         """
-        filepath = self._generate_base_path() + ".png"
+        filepath = (base_path or self._generate_base_path()) + ".png"
         try:
             bitmap.save(filepath, format="PNG")
             LOG.info(f"Virtual printer '{self.name}' saved preview to: {filepath}")
@@ -69,7 +69,7 @@ class VirtualPrinter:
             LOG.error(f"Failed to save preview to {filepath}: {e}")
             raise IOError(f"Failed to save preview: {e}") from e
 
-    def save_json(self, widgets: list[dict], settings: dict) -> str:
+    def save_json(self, widgets: list[dict], settings: dict, base_path: str | None = None) -> str:
         """Save label data as JSON.
 
         Returns:
@@ -78,7 +78,7 @@ class VirtualPrinter:
         Raises:
             IOError: If file cannot be saved.
         """
-        filepath = self._generate_base_path() + ".json"
+        filepath = (base_path or self._generate_base_path()) + ".json"
         data = {"widgets": widgets, "settings": settings}
         try:
             with open(filepath, "w") as f:
@@ -101,8 +101,9 @@ class VirtualPrinter:
             List of saved file paths.
         """
         paths: list[str] = []
+        base_path = self._generate_base_path()
         if self.output_mode in ("image", "both"):
-            paths.append(self.save_preview(preview_bitmap))
+            paths.append(self.save_preview(preview_bitmap, base_path))
         if self.output_mode in ("json", "both"):
-            paths.append(self.save_json(widgets, settings))
+            paths.append(self.save_json(widgets, settings, base_path))
         return paths

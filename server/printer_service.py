@@ -64,7 +64,7 @@ def list_printers() -> list[dict]:
     # Add virtual printers from configuration
     try:
         for config in get_virtual_printers():
-            virtual = VirtualPrinter(config["name"], config["path"])
+            virtual = VirtualPrinter(config["name"], config["path"], output_mode=config.get("output", "image"))
             printers.append({
                 "id": virtual.id,
                 "name": virtual.display_name,
