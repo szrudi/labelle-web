@@ -223,11 +223,12 @@ Smoke tests catch "the app can't start" issues that unit tests miss (e.g. a modu
 
 Run locally with `npm run test:server` (no extra setup needed).
 
-**Layer 2: Docker smoke tests** (CI only)
+**Layer 2: Docker smoke tests** (CI only, defined in `_docker-smoke-test.yml`)
 
-On PRs (`test.yml`), a `docker-smoke` job builds the Docker image, starts a container with a virtual printer, and hits key endpoints (`/api/health`, `/api/printers`, `/api/preview`, `/`).
+A reusable workflow (`_docker-smoke-test.yml`) builds the Docker image, starts a container with a virtual printer, and hits key endpoints (`/api/health`, `/api/printers`, `/api/preview`, `/`). Both `test.yml` and `release.yml` call this workflow:
 
-On release (`release.yml`), the same smoke tests run against the built image before it's pushed to the registry.
+- On PRs (`test.yml`): the `docker-smoke` job calls the reusable workflow after unit tests pass.
+- On release (`release.yml`): a `smoke-test` job calls the reusable workflow after tagging. The `build-and-push` job only runs after the smoke test succeeds.
 
 ## Build and Deployment
 
