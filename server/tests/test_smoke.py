@@ -74,6 +74,7 @@ class TestFlaskApp:
             "/api/printers",
             "/api/upload-image",
             "/api/uploads/<filename>",
+            "/api/health",
         ],
     )
     def test_route_registered(self, rule):

@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import traceback
@@ -93,6 +94,15 @@ def api_serve_upload(filename):
 @app.route("/api/printers", methods=["GET"])
 def api_printers():
     return jsonify(printers=list_printers())
+
+
+@app.route("/api/health", methods=["GET"])
+def api_health():
+    pkg_path = os.path.join(os.path.dirname(__file__), "..", "package.json")
+    with open(pkg_path) as f:
+        version = json.load(f)["version"]
+
+    return jsonify(status="ok", version=version)
 
 
 # --- Static file serving for production (SPA fallback) ---

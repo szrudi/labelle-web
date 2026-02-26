@@ -28,7 +28,8 @@ RUN pip install --no-cache-dir --no-deps labelle \
 
 WORKDIR /app
 
-# Copy Python server
+# Copy Python server and package.json (used by /api/health for version)
+COPY package.json .
 COPY server/*.py server/
 
 # Copy built client assets from build stage

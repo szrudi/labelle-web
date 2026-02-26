@@ -188,6 +188,15 @@ Configure virtual printers in your `.env` file (see `.env.example` for examples)
 
 ## API Endpoints
 
+### `GET /api/health`
+
+Lightweight health check. Returns server status and version (no USB scan).
+
+**Response:**
+```json
+{ "status": "ok", "version": "1.3.4" }
+```
+
 ### `POST /api/print`
 
 Print a label to the connected DYMO printer.

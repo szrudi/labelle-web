@@ -42,8 +42,13 @@ jobs:
             echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           fi
 
-  build-and-push:
+  smoke-test:
     needs: tag
+    if: needs.tag.outputs.tag != ''
+    uses: ./.github/workflows/_docker-smoke-test.yml
+
+  build-and-push:
+    needs: [tag, smoke-test]
     if: needs.tag.outputs.tag != ''
     runs-on: ubuntu-latest
     permissions:
@@ -73,55 +78,6 @@ jobs:
             type=raw,value=${{ needs.tag.outputs.tag }}
             type=raw,value=latest
 
-      # Build amd64 image locally for smoke testing (load requires single platform)
-      - name: Build amd64 image for smoke test
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          load: true
-          tags: labelle-web:smoke-test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Start container
-        run: |
-          docker run -d --name smoke \
-            -p 5000:5000 \
-            -e VIRTUAL_PRINTERS='[{"name":"Smoke Test","path":"/tmp/smoke","output":"image"}]' \
-            labelle-web:smoke-test
-
-      - name: Wait for readiness
-        run: |
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:5000/api/printers > /dev/null 2>&1; then
-              echo "Server ready after ${i}s"
-              exit 0
-            fi
-            sleep 0.5
-          done
-          echo "Server failed to start within 15s"
-          docker logs smoke
-          exit 1
-
-      - name: Smoke test endpoints
-        run: |
-          echo "--- GET /api/printers ---"
-          curl -sf http://localhost:5000/api/printers | python3 -m json.tool
-
-          echo "--- POST /api/preview ---"
-          curl -sf -X POST http://localhost:5000/api/preview \
-            -H 'Content-Type: application/json' \
-            -d '{"widgets":[{"type":"text","text":"smoke test","id":"1"}],"settings":{"tapeSizeMm":12}}' \
-            -o /dev/null -w "HTTP %{http_code}, %{size_download} bytes\n"
-
-          echo "--- GET / ---"
-          curl -sf http://localhost:5000/ -o /dev/null -w "HTTP %{http_code}\n"
-
-      - name: Cleanup smoke test
-        if: always()
-        run: docker rm -f smoke
-
-      # Smoke tests passed — build multi-platform and push (amd64 layers cached)
       - name: Build and push multi-platform
         uses: docker/build-push-action@v6
         with:
