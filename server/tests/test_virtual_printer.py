@@ -1,5 +1,7 @@
+import json
 import os
 
+import pytest
 from PIL import Image
 
 from virtual_printer import VirtualPrinter
@@ -67,11 +69,29 @@ class TestVirtualPrinterInit:
         assert os.path.isdir(output_dir)
 
 
-class TestVirtualPrinterSaveLabel:
+class TestVirtualPrinterOutputMode:
+    def test_default_output_mode(self, tmp_output_dir):
+        vp = VirtualPrinter("Test", tmp_output_dir)
+        assert vp.output_mode == "image"
+
+    def test_custom_output_mode(self, tmp_output_dir):
+        vp = VirtualPrinter("Test", tmp_output_dir, output_mode="json")
+        assert vp.output_mode == "json"
+
+    def test_both_output_mode(self, tmp_output_dir):
+        vp = VirtualPrinter("Test", tmp_output_dir, output_mode="both")
+        assert vp.output_mode == "both"
+
+    def test_invalid_output_mode_raises(self, tmp_output_dir):
+        with pytest.raises(ValueError, match="Invalid output_mode 'img'"):
+            VirtualPrinter("Test", tmp_output_dir, output_mode="img")
+
+
+class TestVirtualPrinterSavePreview:
     def test_saves_png_file(self, tmp_output_dir):
         vp = VirtualPrinter("Test", tmp_output_dir)
         bitmap = Image.new("RGB", (200, 50), color="white")
-        filepath = vp.save_label(bitmap)
+        filepath = vp.save_preview(bitmap)
 
         assert os.path.isfile(filepath)
         assert filepath.endswith(".png")
@@ -79,25 +99,88 @@ class TestVirtualPrinterSaveLabel:
     def test_returns_filepath_in_output_dir(self, tmp_output_dir):
         vp = VirtualPrinter("Test", tmp_output_dir)
         bitmap = Image.new("RGB", (200, 50), color="white")
-        filepath = vp.save_label(bitmap)
+        filepath = vp.save_preview(bitmap)
 
         assert filepath.startswith(tmp_output_dir)
 
-    def test_saved_image_is_valid_png(self, tmp_output_dir):
+    def test_saved_image_is_valid_color_png(self, tmp_output_dir):
         vp = VirtualPrinter("Test", tmp_output_dir)
-        bitmap = Image.new("RGB", (200, 50), color="white")
-        filepath = vp.save_label(bitmap)
+        bitmap = Image.new("RGB", (200, 50), color="red")
+        filepath = vp.save_preview(bitmap)
 
         saved = Image.open(filepath)
         assert saved.size == (200, 50)
+        assert saved.mode == "RGB"
 
     def test_multiple_saves_create_unique_files(self, tmp_output_dir):
         vp = VirtualPrinter("Test", tmp_output_dir)
         bitmap = Image.new("RGB", (200, 50), color="white")
 
-        path1 = vp.save_label(bitmap)
-        path2 = vp.save_label(bitmap)
+        path1 = vp.save_preview(bitmap)
+        path2 = vp.save_preview(bitmap)
 
         assert path1 != path2
         assert os.path.isfile(path1)
         assert os.path.isfile(path2)
+
+
+class TestVirtualPrinterSaveJson:
+    def test_saves_json_file(self, tmp_output_dir):
+        vp = VirtualPrinter("Test", tmp_output_dir)
+        widgets = [{"type": "text", "text": "Hello"}]
+        settings = {"tapeSizeMm": 12}
+        filepath = vp.save_json(widgets, settings)
+
+        assert os.path.isfile(filepath)
+        assert filepath.endswith(".json")
+
+    def test_json_contains_widgets_and_settings(self, tmp_output_dir):
+        vp = VirtualPrinter("Test", tmp_output_dir)
+        widgets = [{"type": "text", "text": "Hello"}]
+        settings = {"tapeSizeMm": 12, "marginPx": 56}
+        filepath = vp.save_json(widgets, settings)
+
+        with open(filepath) as f:
+            data = json.load(f)
+        assert data["widgets"] == widgets
+        assert data["settings"] == settings
+
+    def test_returns_filepath_in_output_dir(self, tmp_output_dir):
+        vp = VirtualPrinter("Test", tmp_output_dir)
+        filepath = vp.save_json([{"type": "text", "text": "Hi"}], {})
+
+        assert filepath.startswith(tmp_output_dir)
+
+
+class TestVirtualPrinterSave:
+    def _make_bitmap(self):
+        return Image.new("RGB", (200, 50), color="blue")
+
+    def test_image_mode_saves_only_png(self, tmp_output_dir):
+        vp = VirtualPrinter("Test", tmp_output_dir, output_mode="image")
+        paths = vp.save(self._make_bitmap(), [{"type": "text", "text": "Hi"}], {})
+
+        assert len(paths) == 1
+        assert paths[0].endswith(".png")
+
+    def test_json_mode_saves_only_json(self, tmp_output_dir):
+        vp = VirtualPrinter("Test", tmp_output_dir, output_mode="json")
+        paths = vp.save(self._make_bitmap(), [{"type": "text", "text": "Hi"}], {})
+
+        assert len(paths) == 1
+        assert paths[0].endswith(".json")
+
+    def test_both_mode_saves_png_and_json(self, tmp_output_dir):
+        vp = VirtualPrinter("Test", tmp_output_dir, output_mode="both")
+        paths = vp.save(self._make_bitmap(), [{"type": "text", "text": "Hi"}], {})
+
+        assert len(paths) == 2
+        extensions = {os.path.splitext(p)[1] for p in paths}
+        assert extensions == {".png", ".json"}
+
+    def test_all_saved_files_exist(self, tmp_output_dir):
+        vp = VirtualPrinter("Test", tmp_output_dir, output_mode="both")
+        paths = vp.save(self._make_bitmap(), [{"type": "text", "text": "Hi"}], {})
+
+        for path in paths:
+            assert os.path.isfile(path)

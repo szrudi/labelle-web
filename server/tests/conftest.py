@@ -22,8 +22,8 @@ def virtual_printer_env(tmp_path):
     output1 = str(tmp_path / "printer1")
     output2 = str(tmp_path / "printer2")
     config = [
-        {"name": "Test Printer", "path": output1},
-        {"name": "Office (2nd Floor)", "path": output2},
+        {"name": "Test Printer", "path": output1, "output": "image"},
+        {"name": "Office (2nd Floor)", "path": output2, "output": "both"},
     ]
     old = os.environ.get("VIRTUAL_PRINTERS")
     os.environ["VIRTUAL_PRINTERS"] = json.dumps(config)

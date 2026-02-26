@@ -28,7 +28,7 @@ You can fight against AI usage or learn to embrace it as a new way of working. I
 - **Label settings** -- tape size, margins, minimum length, justify, foreground/background colors
 - **Per-widget font styles** -- each text widget can have its own font style, scale, frame, and alignment
 - **Multi-printer support** -- automatically detects all connected DYMO printers; select specific printer when multiple are available
-- **Virtual printers** -- configure virtual printers that save labels as PNG files (great for testing, archiving, and development)
+- **Virtual printers** -- configure virtual printers that save labels as PNG images, JSON data, or both (great for testing, archiving, and development)
 - **Save/load labels** -- export label designs to JSON files and load them back, with embedded image data for portability
 - **Print via labelle** -- sends labels to the printer using the labelle Python library over USB
 
@@ -132,9 +132,10 @@ labelle-web/
       types/                # TypeScript type definitions
   server/                   # Python/Flask backend
     app.py                  # Flask application with routes and static serving
-    label_builder.py        # Converts widget JSON to labelle render engines
+    label_builder.py        # Converts widget JSON to labelle render engines (pure rendering)
+    printer_service.py      # Printer resolution and dispatch (USB + virtual)
     config.py               # Environment-based configuration (virtual printers)
-    virtual_printer.py      # Virtual printer implementation (saves PNGs to disk)
+    virtual_printer.py      # Virtual printer implementation (saves PNGs/JSON to disk)
     requirements.txt        # Python dependencies
     tests/                  # Backend tests (pytest)
 ```
@@ -143,10 +144,10 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed design documentation.
 
 ## Configuration
 
-| Environment Variable | Default    | Description                          |
-|---------------------|------------|--------------------------------------|
-| `PORT`              | `5000`     | Server listen port                   |
-| `VIRTUAL_PRINTERS`    | (none)     | JSON array of virtual printers (see below) |
+| Environment Variable | Default | Description                                |
+|----------------------|---------|--------------------------------------------|
+| `PORT`               | `5000`  | Server listen port                         |
+| `VIRTUAL_PRINTERS`   | (none)  | JSON array of virtual printers (see below) |
 
 ### Testing with Virtual Printers
 
@@ -166,20 +167,21 @@ Set the `VIRTUAL_PRINTERS` environment variable to a JSON array of printer confi
 export VIRTUAL_PRINTERS='[{"name":"Office Printer","path":"./output/office"},{"name":"Warehouse Printer","path":"./output/warehouse"}]'
 ```
 
-Each printer configuration requires:
+Each printer configuration has the following fields:
 - `name`: Display name (will appear as "{name} (Virtual)" in UI)
-- `path`: Directory where labels will be saved (created automatically)
+- `path`: Directory where output will be saved (created automatically)
+- `output` *(optional)*: What to save — `"image"` (default), `"json"`, or `"both"`. `"image"` saves a color preview PNG, `"json"` saves the label data for re-importing later.
+
+```bash
+# Example with output mode:
+export VIRTUAL_PRINTERS='[{"name":"Archive","path":"./output/archive","output":"both"}]'
+```
 
 **Docker setup:**
 
-Configure virtual printers in your `.env` file (see `.env.example` for examples). The `compose.yaml` loads it automatically via `env_file`. To access saved labels on the host, uncomment the output volume mount in `compose.yaml`:
+Configure virtual printers in your `.env` file (see `.env.example` for examples). The `compose.yaml` loads it automatically via `env_file`. The `./output` directory is mounted into the container by default, so saved labels appear on the host.
 
-```yaml
-volumes:
-  - ./output:/app/output
-```
-
-**Output format:** Labels are saved as `label_YYYYMMDD_HHMMSS_uuid.png` in the configured directory.
+**Output format:** Files are saved as `label_YYYYMMDD_HHMMSS_uuid.png` / `.json` in the configured directory.
 
 ## API Endpoints
 

@@ -12,8 +12,8 @@ services:
     # USB passthrough for DYMO printer access
     volumes:
       - /dev/bus/usb:/dev/bus/usb
-      # Optional: Mount output directory for virtual printers (uncomment if using VIRTUAL_PRINTERS)
-#      - ./output:/app/output
+      # Mount output directory for virtual printers
+      - ./output:/app/output
     # Required for USB device access from the container
     privileged: true
     restart: unless-stopped

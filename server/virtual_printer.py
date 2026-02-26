@@ -1,11 +1,12 @@
 """Virtual printer implementation for testing and development.
 
-Virtual printers save label output as PNG files to a configured directory
-instead of sending to a physical USB printer. This allows testing multi-printer
-functionality without needing multiple physical devices.
+Virtual printers save label output to a configured directory instead of sending
+to a physical USB printer. Output can be a preview PNG, label JSON, or both,
+controlled by the `output_mode` setting.
 """
 
 import datetime
+import json
 import logging
 import os
 import uuid
@@ -17,17 +18,19 @@ LOG = logging.getLogger(__name__)
 
 
 class VirtualPrinter:
-    """Virtual printer that saves labels as PNG files."""
+    """Virtual printer that saves labels as PNG and/or JSON files."""
 
-    def __init__(self, name: str, output_path: str):
-        """Initialize a virtual printer.
+    VALID_OUTPUT_MODES = ("image", "json", "both")
 
-        Args:
-            name: Human-readable name for the printer
-            output_path: Directory path where labels will be saved
-        """
+    def __init__(self, name: str, output_path: str, output_mode: str = "image"):
+        if output_mode not in self.VALID_OUTPUT_MODES:
+            raise ValueError(
+                f"Invalid output_mode '{output_mode}' for virtual printer '{name}'. "
+                f"Must be one of: {', '.join(self.VALID_OUTPUT_MODES)}"
+            )
         self.name = name
         self.output_path = output_path
+        self.output_mode = output_mode
         self._ensure_output_directory()
 
     def _ensure_output_directory(self):
@@ -41,7 +44,6 @@ class VirtualPrinter:
     @property
     def id(self) -> str:
         """Get unique printer ID with virtual prefix."""
-        # Use sanitized name as ID suffix (replace spaces/special chars)
         sanitized_name = self.name.replace(" ", "_").replace("(", "").replace(")", "")
         return f"virtual:{sanitized_name}"
 
@@ -50,28 +52,65 @@ class VirtualPrinter:
         """Get display name with virtual indicator."""
         return f"{self.name} (Virtual)"
 
-    def save_label(self, bitmap: Image.Image) -> str:
-        """Save label bitmap to file.
-
-        Args:
-            bitmap: PIL Image object to save
-
-        Returns:
-            Path to saved file
-
-        Raises:
-            IOError: If file cannot be saved
-        """
-        # Generate unique filename with timestamp and UUID
+    def _generate_base_path(self) -> str:
+        """Generate a unique base file path (without extension)."""
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         unique_id = uuid.uuid4().hex[:8]
-        filename = f"label_{timestamp}_{unique_id}.png"
-        filepath = os.path.join(self.output_path, filename)
+        return os.path.join(self.output_path, f"label_{timestamp}_{unique_id}")
 
+    def save_preview(self, bitmap: Image.Image, base_path: str | None = None) -> str:
+        """Save preview bitmap as PNG.
+
+        Returns:
+            Path to saved file.
+
+        Raises:
+            IOError: If file cannot be saved.
+        """
+        filepath = (base_path or self._generate_base_path()) + ".png"
         try:
             bitmap.save(filepath, format="PNG")
-            LOG.info(f"Virtual printer '{self.name}' saved label to: {filepath}")
+            LOG.info(f"Virtual printer '{self.name}' saved preview to: {filepath}")
             return filepath
         except Exception as e:
-            LOG.error(f"Failed to save label to {filepath}: {e}")
-            raise IOError(f"Failed to save label: {e}") from e
+            LOG.error(f"Failed to save preview to {filepath}: {e}")
+            raise IOError(f"Failed to save preview: {e}") from e
+
+    def save_json(self, widgets: list[dict], settings: dict, base_path: str | None = None) -> str:
+        """Save label data as JSON.
+
+        Returns:
+            Path to saved file.
+
+        Raises:
+            IOError: If file cannot be saved.
+        """
+        filepath = (base_path or self._generate_base_path()) + ".json"
+        data = {"widgets": widgets, "settings": settings}
+        try:
+            with open(filepath, "w") as f:
+                json.dump(data, f, indent=2)
+            LOG.info(f"Virtual printer '{self.name}' saved JSON to: {filepath}")
+            return filepath
+        except Exception as e:
+            LOG.error(f"Failed to save JSON to {filepath}: {e}")
+            raise IOError(f"Failed to save JSON: {e}") from e
+
+    def save(
+        self,
+        preview_bitmap: Image.Image,
+        widgets: list[dict],
+        settings: dict,
+    ) -> list[str]:
+        """Save output based on configured output_mode.
+
+        Returns:
+            List of saved file paths.
+        """
+        paths: list[str] = []
+        base_path = self._generate_base_path()
+        if self.output_mode in ("image", "both"):
+            paths.append(self.save_preview(preview_bitmap, base_path))
+        if self.output_mode in ("json", "both"):
+            paths.append(self.save_json(widgets, settings, base_path))
+        return paths

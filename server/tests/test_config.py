@@ -87,3 +87,33 @@ class TestGetVirtualPrinters:
         assert len(result) == 2
         assert result[0]["name"] == "Good"
         assert result[1]["name"] == "Also Good"
+
+    def test_output_field_defaults_to_image(self):
+        config = [{"name": "Test", "path": "/tmp/test"}]
+        self._set_env(json.dumps(config))
+        result = get_virtual_printers()
+        assert result[0]["output"] == "image"
+
+    def test_output_field_image_accepted(self):
+        config = [{"name": "Test", "path": "/tmp/test", "output": "image"}]
+        self._set_env(json.dumps(config))
+        result = get_virtual_printers()
+        assert result[0]["output"] == "image"
+
+    def test_output_field_json_accepted(self):
+        config = [{"name": "Test", "path": "/tmp/test", "output": "json"}]
+        self._set_env(json.dumps(config))
+        result = get_virtual_printers()
+        assert result[0]["output"] == "json"
+
+    def test_output_field_both_accepted(self):
+        config = [{"name": "Test", "path": "/tmp/test", "output": "both"}]
+        self._set_env(json.dumps(config))
+        result = get_virtual_printers()
+        assert result[0]["output"] == "both"
+
+    def test_invalid_output_field_skipped(self):
+        config = [{"name": "Test", "path": "/tmp/test", "output": "pdf"}]
+        self._set_env(json.dumps(config))
+        result = get_virtual_printers()
+        assert result == []
