@@ -10,11 +10,7 @@ from labelle.lib.constants import (
     BarcodeType,
     Direction,
 )
-from labelle.lib.devices.device_manager import DeviceManager
 from labelle.lib.devices.dymo_labeler import DymoLabeler
-
-from config import get_virtual_printers
-from virtual_printer import VirtualPrinter
 from labelle.lib.font_config import get_font_path
 from labelle.lib.render_engines.barcode import BarcodeRenderEngine
 from labelle.lib.render_engines.barcode_with_text import BarcodeWithTextRenderEngine
@@ -97,125 +93,48 @@ def _build_render_engines(
     return engines
 
 
-def _render_payload(
+def _render_label(
     dymo_labeler: DymoLabeler,
     render_engine: RenderEngine,
     settings: dict,
     justify: Direction,
     margin_px: float,
     min_payload_px: float,
+    *,
+    for_print: bool = False,
+    show_margins: bool = False,
 ) -> Image.Image:
-    """Render a label bitmap from the given engine and settings."""
+    """Render a label bitmap.
+
+    Args:
+        for_print: If True, renders the raw B&W payload for the printer.
+                   If False, renders a color preview image.
+        show_margins: If True, show margin indicators in the preview.
+    """
     render_context = RenderContext(
         height_px=dymo_labeler.height_px,
         foreground_color=settings.get("foregroundColor", "black"),
         background_color=settings.get("backgroundColor", "white"),
+        preview_show_margins=show_margins,
     )
-    payload = PrintPayloadRenderEngine(
+    engine_cls = PrintPayloadRenderEngine if for_print else PrintPreviewRenderEngine
+    output_engine = engine_cls(
         render_engine=render_engine,
         justify=justify,
         visible_horizontal_margin_px=margin_px,
         labeler_margin_px=dymo_labeler.labeler_margin_px,
         min_width_px=min_payload_px,
     )
-    bitmap, _ = payload.render_with_meta(render_context)
-    return bitmap
+    if for_print:
+        bitmap, _ = output_engine.render_with_meta(render_context)
+        return bitmap
+    return output_engine.render(render_context)
 
 
-def print_label(
-    widgets: list[dict], settings: dict, upload_dir: str = "", printer_id: str | None = None
-) -> None:
-    """Build render engines from widgets and print to the connected DYMO printer or virtual printer.
-
-    Args:
-        widgets: List of widget dictionaries to render
-        settings: Label settings (tape size, margins, etc.)
-        upload_dir: Directory where uploaded images are stored
-        printer_id: Optional printer ID to use. Can be:
-                   - USB ID (e.g. "Bus 001 Device 005: ID 0922:1234") for real printer
-                   - virtual:name (e.g. "virtual:Office_Printer") for virtual printer
-                   - None to auto-select first available real printer
-    """
-    engines = _build_render_engines(widgets, upload_dir)
-    if not engines:
-        raise ValueError("No renderable widgets provided")
-
-    render_engine = HorizontallyCombinedRenderEngine(engines)
-
-    margin_px = settings.get("marginPx", DEFAULT_MARGIN_PX)
-    min_length_mm = settings.get("minLengthMm", 0)
-    min_payload_px = mm_to_payload_px(min_length_mm, margin_px)
-    justify = Direction(settings.get("justify", "center"))
-
-    # Check if this is a virtual printer request
-    if printer_id and printer_id.startswith("virtual:"):
-        # Handle virtual printer - save to file instead of printing
-        virtual_printers_config = get_virtual_printers()
-
-        # Find matching virtual printer
-        virtual_printer = None
-        for config in virtual_printers_config:
-            test_printer = VirtualPrinter(config["name"], config["path"])
-            if test_printer.id == printer_id:
-                virtual_printer = test_printer
-                break
-
-        if not virtual_printer:
-            raise ValueError(f"Virtual printer not found: {printer_id}")
-
-        # Use DymoLabeler without device just to get dimensions
-        dymo_labeler = DymoLabeler(tape_size_mm=settings.get("tapeSizeMm", 12))
-        bitmap = _render_payload(dymo_labeler, render_engine, settings, justify, margin_px, min_payload_px)
-
-        # Save to file instead of printing
-        virtual_printer.save_label(bitmap)
-    else:
-        # Try real USB printer first
-        device = None
-        try:
-            device_manager = DeviceManager()
-            device_manager.scan()
-
-            # TODO: Future improvement - store per-printer settings (tape size, margins, color)
-            if printer_id:
-                # Find printer by USB ID
-                matching_devices = [dev for dev in device_manager.devices if dev.usb_id == printer_id]
-                if not matching_devices:
-                    raise ValueError(f"Printer not found: {printer_id}")
-                device = matching_devices[0]
-            else:
-                # Auto-select first available USB printer
-                device = device_manager.find_and_select_device()
-        except Exception:
-            # If a specific printer was requested but not found, don't fall back
-            if printer_id:
-                raise
-
-            # Auto-select: fall back to first virtual printer
-            virtual_printers_config = get_virtual_printers()
-            if virtual_printers_config:
-                config = virtual_printers_config[0]
-                virtual_printer = VirtualPrinter(config["name"], config["path"])
-
-                dymo_labeler = DymoLabeler(tape_size_mm=settings.get("tapeSizeMm", 12))
-                bitmap = _render_payload(dymo_labeler, render_engine, settings, justify, margin_px, min_payload_px)
-                virtual_printer.save_label(bitmap)
-                return
-
-            raise ValueError("No printers available (no USB printers found and no virtual printers configured)")
-
-        device.setup()
-
-        dymo_labeler = DymoLabeler(
-            tape_size_mm=settings.get("tapeSizeMm", 12),
-            device=device,
-        )
-        bitmap = _render_payload(dymo_labeler, render_engine, settings, justify, margin_px, min_payload_px)
-        dymo_labeler.print(bitmap)
-
-
-def preview_label(widgets: list[dict], settings: dict, upload_dir: str = "") -> bytes:
-    """Build render engines from widgets and return a PNG preview as bytes."""
+def _prepare_render(
+    widgets: list[dict], settings: dict, upload_dir: str = "",
+) -> tuple[DymoLabeler, RenderEngine, Direction, float, float]:
+    """Shared setup for rendering: build engines, parse settings, create labeler."""
     engines = _build_render_engines(widgets, upload_dir)
     if not engines:
         raise ValueError("No renderable widgets provided")
@@ -229,22 +148,41 @@ def preview_label(widgets: list[dict], settings: dict, upload_dir: str = "") -> 
 
     dymo_labeler = DymoLabeler(tape_size_mm=settings.get("tapeSizeMm", 12))
 
-    render_context = RenderContext(
-        height_px=dymo_labeler.height_px,
-        foreground_color=settings.get("foregroundColor", "black"),
-        background_color=settings.get("backgroundColor", "white"),
-        preview_show_margins=settings.get("showMargins", True),
+    return dymo_labeler, render_engine, justify, margin_px, min_payload_px
+
+
+def render_preview(
+    widgets: list[dict], settings: dict, upload_dir: str = "", show_margins: bool = False,
+) -> Image.Image:
+    """Render a color preview image from widgets."""
+    dymo_labeler, render_engine, justify, margin_px, min_payload_px = _prepare_render(
+        widgets, settings, upload_dir
+    )
+    return _render_label(
+        dymo_labeler, render_engine, settings, justify, margin_px, min_payload_px,
+        show_margins=show_margins,
     )
 
-    preview = PrintPreviewRenderEngine(
-        render_engine=render_engine,
-        justify=justify,
-        visible_horizontal_margin_px=margin_px,
-        labeler_margin_px=dymo_labeler.labeler_margin_px,
-        min_width_px=min_payload_px,
-    )
-    bitmap = preview.render(render_context)
 
+def render_payload(
+    widgets: list[dict], settings: dict, upload_dir: str = "",
+) -> Image.Image:
+    """Render a B&W payload image ready for printing."""
+    dymo_labeler, render_engine, justify, margin_px, min_payload_px = _prepare_render(
+        widgets, settings, upload_dir
+    )
+    return _render_label(
+        dymo_labeler, render_engine, settings, justify, margin_px, min_payload_px,
+        for_print=True,
+    )
+
+
+def preview_label(widgets: list[dict], settings: dict, upload_dir: str = "") -> bytes:
+    """Build render engines from widgets and return a PNG preview as bytes."""
+    bitmap = render_preview(
+        widgets, settings, upload_dir,
+        show_margins=settings.get("showMargins", True),
+    )
     buf = BytesIO()
     bitmap.save(buf, format="PNG")
     return buf.getvalue()
