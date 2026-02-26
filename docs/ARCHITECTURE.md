@@ -194,6 +194,36 @@ Settings like `marginPx`, `minLengthMm`, `justify`, `tapeSizeMm`, `foregroundCol
 - `GET /api/uploads/<filename>` — Serves uploaded images (used by the editor thumbnail)
 - Static file serving from `dist-client/` with SPA fallback to `index.html`
 
+## Testing
+
+### Unit Tests
+
+Backend tests live in `server/tests/` and run via pytest:
+
+```bash
+npm run test:server
+# or directly:
+.venv/bin/python -m pytest server/tests/ -v
+```
+
+### Smoke Tests
+
+Smoke tests catch "the app can't start" issues that unit tests miss (e.g. a module not included in the Docker image).
+
+**Layer 1: Import smoke tests** (`server/tests/test_smoke.py`)
+
+- Imports every server module via `importlib` to catch missing dependencies
+- Verifies Flask app creates and all API routes are registered
+- Cross-checks the module list against `server/*.py` on disk — if a new module is added but not listed, the test fails, reminding you to update the Dockerfile too
+
+Run locally with `npm run test:server` (no extra setup needed).
+
+**Layer 2: Docker smoke tests** (CI only)
+
+On PRs (`test.yml`), a `docker-smoke` job builds the Docker image, starts a container with a virtual printer, and hits key endpoints (`/api/printers`, `/api/preview`, `/`).
+
+On release (`release.yml`), the same smoke tests run against the built image before it's pushed to the registry.
+
 ## Build and Deployment
 
 ### Development
