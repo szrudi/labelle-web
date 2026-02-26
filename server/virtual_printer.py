@@ -20,7 +20,14 @@ LOG = logging.getLogger(__name__)
 class VirtualPrinter:
     """Virtual printer that saves labels as PNG and/or JSON files."""
 
+    VALID_OUTPUT_MODES = ("image", "json", "both")
+
     def __init__(self, name: str, output_path: str, output_mode: str = "image"):
+        if output_mode not in self.VALID_OUTPUT_MODES:
+            raise ValueError(
+                f"Invalid output_mode '{output_mode}' for virtual printer '{name}'. "
+                f"Must be one of: {', '.join(self.VALID_OUTPUT_MODES)}"
+            )
         self.name = name
         self.output_path = output_path
         self.output_mode = output_mode

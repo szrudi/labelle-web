@@ -1,6 +1,7 @@
 import json
 import os
 
+import pytest
 from PIL import Image
 
 from virtual_printer import VirtualPrinter
@@ -80,6 +81,10 @@ class TestVirtualPrinterOutputMode:
     def test_both_output_mode(self, tmp_output_dir):
         vp = VirtualPrinter("Test", tmp_output_dir, output_mode="both")
         assert vp.output_mode == "both"
+
+    def test_invalid_output_mode_raises(self, tmp_output_dir):
+        with pytest.raises(ValueError, match="Invalid output_mode 'img'"):
+            VirtualPrinter("Test", tmp_output_dir, output_mode="img")
 
 
 class TestVirtualPrinterSavePreview:
