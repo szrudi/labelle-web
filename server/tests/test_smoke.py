@@ -1,7 +1,6 @@
 """Smoke tests: verify all server modules import cleanly and the Flask app starts."""
 
 import importlib
-import os
 from pathlib import Path
 
 import pytest
@@ -74,6 +73,7 @@ class TestFlaskApp:
             "/api/preview",
             "/api/printers",
             "/api/upload-image",
+            "/api/uploads/<filename>",
         ],
     )
     def test_route_registered(self, rule):
