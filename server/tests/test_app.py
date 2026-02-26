@@ -241,6 +241,22 @@ class TestApiServeUpload:
         assert resp.status_code == 404
 
 
+class TestApiHealth:
+    def test_returns_ok_status(self, client):
+        resp = client.get("/api/health")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "ok"
+
+    def test_includes_version(self, client):
+        resp = client.get("/api/health")
+        data = resp.get_json()
+        # Version should be a semver-like string
+        assert "version" in data
+        parts = data["version"].split(".")
+        assert len(parts) == 3
+
+
 class TestApiPrintErrors:
     @patch("app.print_label")
     def test_returns_400_for_empty_widgets(self, mock_print, client):

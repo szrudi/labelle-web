@@ -156,6 +156,10 @@ POST /api/preview
       -> PrintPreviewRenderEngine
       -> PNG bytes via PIL
   <- image/png
+GET /api/health
+  -> app.py (api_health)
+    -> Read version from package.json
+  <- { status, version }
 ```
 
 ### Label Builder (`label_builder.py`)
@@ -187,6 +191,7 @@ Settings like `marginPx`, `minLengthMm`, `justify`, `tapeSizeMm`, `foregroundCol
 
 ### Flask App (`app.py`)
 
+- `GET /api/health` — Lightweight health check, returns server status and version (no USB scan)
 - `GET /api/printers` — Scans USB devices + loads virtual printer config, returns combined list
 - `POST /api/print` — Validates request, extracts printerId, calls `print_label()`, returns JSON status
 - `POST /api/preview` — Validates request, calls `preview_label()`, returns PNG bytes
@@ -220,7 +225,7 @@ Run locally with `npm run test:server` (no extra setup needed).
 
 **Layer 2: Docker smoke tests** (CI only)
 
-On PRs (`test.yml`), a `docker-smoke` job builds the Docker image, starts a container with a virtual printer, and hits key endpoints (`/api/printers`, `/api/preview`, `/`).
+On PRs (`test.yml`), a `docker-smoke` job builds the Docker image, starts a container with a virtual printer, and hits key endpoints (`/api/health`, `/api/printers`, `/api/preview`, `/`).
 
 On release (`release.yml`), the same smoke tests run against the built image before it's pushed to the registry.
 
@@ -313,3 +318,12 @@ TODOs documented in code comments:
 - Confirmed working on Raspberry Pi with USB 2.0 hub (2109:3431) that supports per-port power switching (ppps)
 - Handle "powering up" state in UI (spinner/status indicator while printer initializes)
 - Consider per-printer port mapping for multi-printer setups
+
+**Home Assistant Integration (separate repo: `labelle-web-hacs`):**
+- HACS integration that connects to Labelle Web's REST API over the network
+- Config flow: server URL input + connection validation
+- HA services: `labelle.print_label`, `labelle.preview` — thin REST client calls
+- Sensor/button entities per printer (status, quick-print)
+- Custom Lovelace card: text input, template picker, preview, print button
+- Enables HA automations (e.g. print label on package arrival)
+- Uses `GET /api/health` for connectivity monitoring (lightweight, no USB scan)
