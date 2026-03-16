@@ -111,8 +111,23 @@ def _render_label(
                    If False, renders a color preview image.
         show_margins: If True, show margin indicators in the preview.
     """
+    tape_height_px = dymo_labeler.height_px
+    _, labeler_v_margin_px = dymo_labeler.labeler_margin_px
+
+    # The labeler's vertical margin (from labeler_margin_px) is expressed in
+    # PIXELS_PER_MM scale, but the tape height is expressed in printer-dot scale
+    # (height_px / tape_size_mm dots/mm). Convert to get the dead-zone in dots.
+    # This dead zone is the area outside the print head's coverage (e.g. the clear
+    # laminate on each side of D1 tape). Rendering text in this zone would make it
+    # invisible on the printed label.
+    v_margin_dots = round(
+        labeler_v_margin_px * tape_height_px / (dymo_labeler.tape_size_mm * PIXELS_PER_MM)
+    )
+    # Printable height: the area within the print head's coverage
+    render_height_px = max(1, tape_height_px - 2 * v_margin_dots)
+
     render_context = RenderContext(
-        height_px=dymo_labeler.height_px,
+        height_px=render_height_px,
         foreground_color=settings.get("foregroundColor", "black"),
         background_color=settings.get("backgroundColor", "white"),
         preview_show_margins=show_margins,
@@ -127,6 +142,13 @@ def _render_label(
     )
     if for_print:
         bitmap, _ = output_engine.render_with_meta(render_context)
+        # The printer protocol requires exactly tape_height_px rows (bytes) per
+        # column. Pad the content bitmap vertically so the print head receives
+        # the correct number of dots, with content centered in the printable zone.
+        if v_margin_dots > 0 and bitmap.height < tape_height_px:
+            padded = Image.new("1", (bitmap.width, tape_height_px))
+            padded.paste(bitmap, box=(0, v_margin_dots))
+            return padded
         return bitmap
     return output_engine.render(render_context)
 
