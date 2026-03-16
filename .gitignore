@@ -21,6 +21,11 @@ labelle-main/
 .DS_Store
 Thumbs.db
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
 # Misc
 *.log
 output.png
