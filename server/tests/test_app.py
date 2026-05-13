@@ -365,6 +365,46 @@ class TestApiPower:
         mock_on.side_effect = subprocess.CalledProcessError(1, "uhubctl")
         resp = client.post("/api/power/on")
         assert resp.status_code == 500
+        assert resp.get_json()["status"] == "error"
+
+    @patch("app.usb_power.get_port_status")
+    @patch("app.usb_power.find_or_recall_printer_port")
+    def test_status_returns_500_envelope_on_parse_error(
+        self, mock_find, mock_status, client
+    ):
+        mock_find.return_value = ("1-1", 3)
+        mock_status.side_effect = ValueError("Port 3 not found on hub 1-1")
+        resp = client.get("/api/power/status")
+        assert resp.status_code == 500
+        data = resp.get_json()
+        assert data["status"] == "error"
+        assert "Port 3" in data["message"]
+
+    @patch("app.usb_power.get_port_status")
+    @patch("app.usb_power.find_or_recall_printer_port")
+    def test_status_returns_500_envelope_on_subprocess_error(
+        self, mock_find, mock_status, client
+    ):
+        import subprocess
+
+        mock_find.return_value = ("1-1", 3)
+        mock_status.side_effect = subprocess.CalledProcessError(1, "uhubctl")
+        resp = client.get("/api/power/status")
+        assert resp.status_code == 500
+        assert resp.get_json()["status"] == "error"
+
+    @patch("app.usb_power.get_port_status")
+    @patch("app.usb_power.power_off")
+    @patch("app.usb_power.find_or_recall_printer_port")
+    def test_off_returns_500_envelope_when_post_status_fails(
+        self, mock_find, mock_off, mock_status, client
+    ):
+        # power_off itself succeeds, but the post-action status read fails.
+        mock_find.return_value = ("1-1", 3)
+        mock_status.side_effect = ValueError("parse failure")
+        resp = client.post("/api/power/off")
+        assert resp.status_code == 500
+        assert resp.get_json()["status"] == "error"
 
 
 class TestApiPrintErrors:

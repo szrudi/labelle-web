@@ -110,13 +110,28 @@ def _printer_port_or_404():
     return port, None
 
 
+# Errors that the /api/power/* endpoints translate into a 500 with a
+# JSON {status, message} body: uhubctl failed to run, hung, isn't
+# installed, or produced output get_port_status couldn't parse.
+_POWER_ERRORS = (subprocess.SubprocessError, ValueError, OSError)
+
+
+def _power_error_response(e: Exception):
+    traceback.print_exc()
+    return jsonify(status="error", message=str(e)), 500
+
+
 @app.route("/api/power/status", methods=["GET"])
 def api_power_status():
     port, err = _printer_port_or_404()
     if err:
         return err
     hub, port_num = port
-    return jsonify(hub=hub, port=port_num, **usb_power.get_port_status(hub, port_num))
+    try:
+        status = usb_power.get_port_status(hub, port_num)
+    except _POWER_ERRORS as e:
+        return _power_error_response(e)
+    return jsonify(hub=hub, port=port_num, **status)
 
 
 @app.route("/api/power/on", methods=["POST"])
@@ -127,16 +142,11 @@ def api_power_on():
     hub, port_num = port
     try:
         usb_power.power_on(hub, port_num)
-    except subprocess.CalledProcessError as e:
-        traceback.print_exc()
-        return jsonify(status="error", message=str(e)), 500
-    time.sleep(POWER_ON_SETTLE_SECONDS)
-    return jsonify(
-        status="success",
-        hub=hub,
-        port=port_num,
-        **usb_power.get_port_status(hub, port_num),
-    )
+        time.sleep(POWER_ON_SETTLE_SECONDS)
+        status = usb_power.get_port_status(hub, port_num)
+    except _POWER_ERRORS as e:
+        return _power_error_response(e)
+    return jsonify(status="success", hub=hub, port=port_num, **status)
 
 
 @app.route("/api/power/off", methods=["POST"])
@@ -147,15 +157,10 @@ def api_power_off():
     hub, port_num = port
     try:
         usb_power.power_off(hub, port_num)
-    except subprocess.CalledProcessError as e:
-        traceback.print_exc()
-        return jsonify(status="error", message=str(e)), 500
-    return jsonify(
-        status="success",
-        hub=hub,
-        port=port_num,
-        **usb_power.get_port_status(hub, port_num),
-    )
+        status = usb_power.get_port_status(hub, port_num)
+    except _POWER_ERRORS as e:
+        return _power_error_response(e)
+    return jsonify(status="success", hub=hub, port=port_num, **status)
 
 
 def _build_info() -> dict:
