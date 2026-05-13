@@ -15,6 +15,7 @@ SERVER_MODULES = [
     "config",
     "label_builder",
     "printer_service",
+    "usb_power",
     "virtual_printer",
 ]
 
@@ -75,6 +76,9 @@ class TestFlaskApp:
             "/api/upload-image",
             "/api/uploads/<filename>",
             "/api/health",
+            "/api/power/status",
+            "/api/power/on",
+            "/api/power/off",
         ],
     )
     def test_route_registered(self, rule):

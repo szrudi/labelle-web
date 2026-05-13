@@ -15,10 +15,11 @@ RUN npm run build
 # --- Runtime stage: Python only ---
 FROM python:3.12-slim
 
-# Install libusb for DYMO USB access, then Python dependencies
-# PyQt6 is GUI-only; remove it to save space (darkdetect must stay — imported at load time)
+# Install libusb for DYMO USB access, uhubctl for per-port USB power control
+# (printer power-save), then Python dependencies. PyQt6 is GUI-only; we keep
+# darkdetect because labelle imports it at module load.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libusb-1.0-0 \
+    && apt-get install -y --no-install-recommends libusb-1.0-0 uhubctl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY server/requirements.txt /tmp/requirements.txt

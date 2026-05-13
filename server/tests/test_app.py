@@ -292,6 +292,81 @@ class TestApiHealth:
         assert "version" in data
 
 
+class TestApiPower:
+    @patch("app.usb_power.get_port_status")
+    @patch("app.usb_power.find_or_recall_printer_port")
+    def test_status_returns_hub_port_and_state(self, mock_find, mock_status, client):
+        mock_find.return_value = ("1-1", 3)
+        mock_status.return_value = {"powered": True, "connected": True}
+        resp = client.get("/api/power/status")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["hub"] == "1-1"
+        assert data["port"] == 3
+        assert data["powered"] is True
+        assert data["connected"] is True
+
+    @patch("app.usb_power.find_or_recall_printer_port")
+    def test_status_returns_404_when_no_printer(self, mock_find, client):
+        mock_find.return_value = None
+        resp = client.get("/api/power/status")
+        assert resp.status_code == 404
+        assert "not detected" in resp.get_json()["message"].lower()
+
+    @patch("app.time.sleep")
+    @patch("app.usb_power.get_port_status")
+    @patch("app.usb_power.power_on")
+    @patch("app.usb_power.find_or_recall_printer_port")
+    def test_on_powers_and_returns_status(
+        self, mock_find, mock_on, mock_status, mock_sleep, client
+    ):
+        mock_find.return_value = ("1-1", 3)
+        mock_status.return_value = {"powered": True, "connected": True}
+        resp = client.post("/api/power/on")
+        assert resp.status_code == 200
+        mock_on.assert_called_once_with("1-1", 3)
+        data = resp.get_json()
+        assert data["powered"] is True
+
+    @patch("app.usb_power.get_port_status")
+    @patch("app.usb_power.power_off")
+    @patch("app.usb_power.find_or_recall_printer_port")
+    def test_off_powers_and_returns_status(
+        self, mock_find, mock_off, mock_status, client
+    ):
+        mock_find.return_value = ("1-1", 3)
+        mock_status.return_value = {"powered": False, "connected": False}
+        resp = client.post("/api/power/off")
+        assert resp.status_code == 200
+        mock_off.assert_called_once_with("1-1", 3)
+        assert resp.get_json()["powered"] is False
+
+    @patch("app.usb_power.find_or_recall_printer_port")
+    def test_on_returns_404_when_no_known_port(self, mock_find, client):
+        mock_find.return_value = None
+        resp = client.post("/api/power/on")
+        assert resp.status_code == 404
+
+    @patch("app.usb_power.find_or_recall_printer_port")
+    def test_off_returns_404_when_no_known_port(self, mock_find, client):
+        mock_find.return_value = None
+        resp = client.post("/api/power/off")
+        assert resp.status_code == 404
+
+    @patch("app.time.sleep")
+    @patch("app.usb_power.power_on")
+    @patch("app.usb_power.find_or_recall_printer_port")
+    def test_on_returns_500_when_uhubctl_fails(
+        self, mock_find, mock_on, mock_sleep, client
+    ):
+        import subprocess
+
+        mock_find.return_value = ("1-1", 3)
+        mock_on.side_effect = subprocess.CalledProcessError(1, "uhubctl")
+        resp = client.post("/api/power/on")
+        assert resp.status_code == 500
+
+
 class TestApiPrintErrors:
     @patch("app.print_label")
     def test_returns_400_for_empty_widgets(self, mock_print, client):

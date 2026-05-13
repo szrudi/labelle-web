@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 import traceback
 import uuid
 
@@ -13,8 +14,13 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
+import usb_power
 from label_builder import preview_label
 from printer_service import list_printers, print_label
+
+# Seconds to wait after power-on before reading status, so the device has
+# time to re-enumerate on the USB bus.
+POWER_ON_SETTLE_SECONDS = 1.5
 
 app = Flask(__name__, static_folder=None)
 CORS(app)
@@ -95,6 +101,61 @@ def api_serve_upload(filename):
 @app.route("/api/printers", methods=["GET"])
 def api_printers():
     return jsonify(printers=list_printers())
+
+
+def _printer_port_or_404():
+    port = usb_power.find_or_recall_printer_port()
+    if port is None:
+        return None, (jsonify(status="error", message="Printer not detected"), 404)
+    return port, None
+
+
+@app.route("/api/power/status", methods=["GET"])
+def api_power_status():
+    port, err = _printer_port_or_404()
+    if err:
+        return err
+    hub, port_num = port
+    return jsonify(hub=hub, port=port_num, **usb_power.get_port_status(hub, port_num))
+
+
+@app.route("/api/power/on", methods=["POST"])
+def api_power_on():
+    port, err = _printer_port_or_404()
+    if err:
+        return err
+    hub, port_num = port
+    try:
+        usb_power.power_on(hub, port_num)
+    except subprocess.CalledProcessError as e:
+        traceback.print_exc()
+        return jsonify(status="error", message=str(e)), 500
+    time.sleep(POWER_ON_SETTLE_SECONDS)
+    return jsonify(
+        status="success",
+        hub=hub,
+        port=port_num,
+        **usb_power.get_port_status(hub, port_num),
+    )
+
+
+@app.route("/api/power/off", methods=["POST"])
+def api_power_off():
+    port, err = _printer_port_or_404()
+    if err:
+        return err
+    hub, port_num = port
+    try:
+        usb_power.power_off(hub, port_num)
+    except subprocess.CalledProcessError as e:
+        traceback.print_exc()
+        return jsonify(status="error", message=str(e)), 500
+    return jsonify(
+        status="success",
+        hub=hub,
+        port=port_num,
+        **usb_power.get_port_status(hub, port_num),
+    )
 
 
 def _build_info() -> dict:
