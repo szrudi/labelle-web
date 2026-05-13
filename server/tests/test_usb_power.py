@@ -19,11 +19,15 @@ Current status for hub 1-1 [2109:3431 USB2.0 Hub, USB 2.10, 4 ports, ppps]
 """
 
 UHUBCTL_PORT_ON = """\
+Current status for hub 2 [1d6b:0003 xHCI Host Controller, USB 3.00, 4 ports, ppps]
+  Port 3: 02a0 power 5gbps Rx.Detect
 Current status for hub 1-1 [2109:3431 USB2.0 Hub, USB 2.10, 4 ports, ppps]
   Port 3: 0103 power enable connect [0922:1002 Dymo DYMO LabelManager PnP 08383504012013]
 """
 
 UHUBCTL_PORT_OFF = """\
+Current status for hub 2 [1d6b:0003 xHCI Host Controller, USB 3.00, 4 ports, ppps]
+  Port 3: 0080 off
 Current status for hub 1-1 [2109:3431 USB2.0 Hub, USB 2.10, 4 ports, ppps]
   Port 3: 0000 off
 """

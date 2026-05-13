@@ -46,11 +46,20 @@ def find_printer_port(vendor_product_id: str = DYMO_USB_ID) -> tuple[str, int] |
 
 
 def get_port_status(hub: str, port: int) -> dict:
-    """Return {'powered': bool, 'connected': bool} for a specific hub port."""
+    """Return {'powered': bool, 'connected': bool} for a specific hub port.
+
+    uhubctl prints the upstream hub's port alongside the target hub's
+    port, so we have to filter to the right hub before reading the
+    port line — otherwise we read the upstream's status (which never
+    reports `connect`).
+    """
     output = _run("-l", hub, "-p", str(port))
+    in_target_hub = False
     for line in output.splitlines():
-        m = _PORT_LINE_RE.match(line)
-        if m and int(m.group(1)) == port:
+        if m := _HUB_LINE_RE.match(line):
+            in_target_hub = m.group(1) == hub
+            continue
+        if in_target_hub and (m := _PORT_LINE_RE.match(line)) and int(m.group(1)) == port:
             flags = m.group(3)
             return {
                 "powered": "power" in flags,
