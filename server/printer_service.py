@@ -7,6 +7,12 @@ from config import get_virtual_printers
 from label_builder import render_payload, render_preview
 from virtual_printer import VirtualPrinter
 
+# Note: libusb cache invalidation lives in `usb_power.power_on()`, not
+# here. Scans rely on the cache being already-fresh from the last power
+# transition. See `usb_power._invalidate_libusb_cache` for the rationale
+# (resetting libusb in the read path triggers kernel hub auto-resume
+# which re-energizes off ports).
+
 
 def _find_virtual_printer(printer_id: str) -> VirtualPrinter:
     """Resolve a virtual printer by its ID (e.g. 'virtual:Office_Printer')."""
