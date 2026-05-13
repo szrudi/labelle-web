@@ -251,10 +251,45 @@ class TestApiHealth:
     def test_includes_version(self, client):
         resp = client.get("/api/health")
         data = resp.get_json()
-        # Version should be a semver-like string
+        # SemVer MAJOR.MINOR.PATCH, optionally with -pre-release suffix
         assert "version" in data
         parts = data["version"].split(".")
         assert len(parts) == 3
+
+    def test_includes_commit_and_branch_from_env(self, client, monkeypatch):
+        monkeypatch.setenv("GIT_SHA", "abc1234")
+        monkeypatch.setenv("GIT_BRANCH", "feature/foo")
+        resp = client.get("/api/health")
+        data = resp.get_json()
+        assert data["commit"] == "abc1234"
+        assert data["branch"] == "feature/foo"
+
+    def test_falls_back_to_git_when_env_unset(self, client, monkeypatch):
+        monkeypatch.delenv("GIT_SHA", raising=False)
+        monkeypatch.delenv("GIT_BRANCH", raising=False)
+        resp = client.get("/api/health")
+        data = resp.get_json()
+        # Tests run in the project git repo, so git fallback should work
+        assert "commit" in data
+        assert "branch" in data
+        assert len(data["commit"]) >= 7  # short SHA
+
+    def test_no_commit_branch_when_subprocess_fails(self, client, monkeypatch):
+        monkeypatch.delenv("GIT_SHA", raising=False)
+        monkeypatch.delenv("GIT_BRANCH", raising=False)
+        import subprocess
+
+        def boom(*args, **kwargs):
+            raise FileNotFoundError("git not installed")
+
+        monkeypatch.setattr(subprocess, "check_output", boom)
+        resp = client.get("/api/health")
+        data = resp.get_json()
+        assert "commit" not in data
+        assert "branch" not in data
+        # status/version still present
+        assert data["status"] == "ok"
+        assert "version" in data
 
 
 class TestApiPrintErrors:

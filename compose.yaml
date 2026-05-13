@@ -1,7 +1,11 @@
 services:
   labelle-web:
     image: ghcr.io/szrudi/labelle-web:latest
-    build: .
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-}
+        GIT_BRANCH: ${GIT_BRANCH:-}
     ports:
       - "${PORT:-5000}:${PORT:-5000}"
     env_file:
