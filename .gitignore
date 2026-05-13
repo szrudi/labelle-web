@@ -10,6 +10,11 @@ dist-client/
 
 # IDE
 .idea/
+.claude/
+CLAUDE.md
+
+# Python
+__pycache__/
 
 # Environment
 .env
