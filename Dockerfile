@@ -35,6 +35,12 @@ COPY server/*.py server/
 # Copy built client assets from build stage
 COPY --from=build /app/server/dist-client/ server/dist-client/
 
+# Build provenance: surfaced via /api/health so we can see what's deployed
+ARG GIT_SHA=
+ARG GIT_BRANCH=
+ENV GIT_SHA=${GIT_SHA}
+ENV GIT_BRANCH=${GIT_BRANCH}
+
 EXPOSE 5000
 
 CMD ["python", "server/app.py"]

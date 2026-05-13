@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import tempfile
 import traceback
 import uuid
@@ -96,13 +97,38 @@ def api_printers():
     return jsonify(printers=list_printers())
 
 
+def _build_info() -> dict:
+    """Return {commit, branch} from env vars (set at Docker build time) or git."""
+    info = {}
+    if sha := os.environ.get("GIT_SHA"):
+        info["commit"] = sha
+    if branch := os.environ.get("GIT_BRANCH"):
+        info["branch"] = branch
+    if info:
+        return info
+
+    repo_root = os.path.join(os.path.dirname(__file__), "..")
+    try:
+        sha = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=repo_root, stderr=subprocess.DEVNULL, timeout=2,
+        ).decode().strip()
+        branch = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=repo_root, stderr=subprocess.DEVNULL, timeout=2,
+        ).decode().strip()
+        return {"commit": sha, "branch": branch}
+    except (subprocess.SubprocessError, FileNotFoundError, OSError):
+        return {}
+
+
 @app.route("/api/health", methods=["GET"])
 def api_health():
     pkg_path = os.path.join(os.path.dirname(__file__), "..", "package.json")
     with open(pkg_path) as f:
         version = json.load(f)["version"]
 
-    return jsonify(status="ok", version=version)
+    return jsonify(status="ok", version=version, **_build_info())
 
 
 # --- Static file serving for production (SPA fallback) ---
