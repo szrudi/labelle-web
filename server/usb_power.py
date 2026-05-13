@@ -160,12 +160,20 @@ def _save_state(hub: str, port: int, path: Path | None = None) -> None:
 
     Best-effort: a write failure (read-only fs, missing volume mount,
     permissions) only loses cross-restart memory, never breaks runtime.
+
+    Writes are atomic-on-POSIX: serialize to a sibling `.tmp` file
+    first, then `os.replace()` over the target. A process interrupted
+    mid-write (or another thread writing concurrently) leaves the
+    target either fully old or fully new, never a torn JSON that
+    `_load_state` would have to discard.
     """
     if path is None:
         path = _STATE_FILE
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"hub": hub, "port": port}))
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(json.dumps({"hub": hub, "port": port}))
+        tmp.replace(path)
     except OSError as e:
         logger.warning("Could not save printer port state to %s: %s", path, e)
 

@@ -193,9 +193,9 @@ class TestStatePersistence:
         mock_run.return_value = _result(UHUBCTL_DEFAULT_OUTPUT)
         usb_power.find_or_recall_printer_port()
 
-        # Override the default arg of _save_state by calling _load_state
-        # against the same path the function just wrote to.
-        assert usb_power._load_state(state_file) == ("1-1", 3)
+        # Read it back through `_load_state()` with no arg so it
+        # resolves the same monkeypatched `_STATE_FILE`.
+        assert usb_power._load_state() == ("1-1", 3)
 
     def test_find_or_recall_does_not_rewrite_unchanged_value(
         self, mock_run, tmp_path, monkeypatch
