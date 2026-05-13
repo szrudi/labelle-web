@@ -1,0 +1,77 @@
+name: Build PR image
+
+# Builds a Docker image for every PR push and publishes it to GHCR
+# under `:pr-<N>` and `:<sha>` tags so it can be pulled and tested on
+# hardware (e.g. hector) without rebuilding manually on the Pi. Does
+# NOT touch `:latest` or `:vX.Y.Z` — those remain owned by release.yml
+# and are only updated on merge to main with a version bump.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute short SHA
+        id: sha
+        run: echo "short=$(echo ${{ github.event.pull_request.head.sha }} | cut -c1-7)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push multi-platform
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.sha.outputs.short }}
+          build-args: |
+            GIT_SHA=${{ steps.sha.outputs.short }}
+            GIT_BRANCH=pr-${{ github.event.pull_request.number }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Annotate run summary
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## PR image published
+
+          - \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number }}\`
+          - \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.sha.outputs.short }}\`
+
+          Pull and test on hector:
+          \`\`\`bash
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number }}
+          docker run -d --rm --name labelle-pr-test --privileged \\
+            -v /dev/bus/usb:/dev/bus/usb -p 5001:5000 \\
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number }}
+          curl http://localhost:5001/api/health
+          \`\`\`
+          EOF
