@@ -12,12 +12,36 @@ import os
 import re
 import subprocess
 
+import usb.backend.libusb1
+
 UHUBCTL_BIN = os.environ.get("UHUBCTL_BIN", "uhubctl")
 DYMO_USB_ID = "0922:1002"
 
 _HUB_LINE_RE = re.compile(r"Current status for hub (\S+)")
 _PORT_DEVICE_RE = re.compile(r"\s+Port (\d+):.*\[(\S+) ")
 _PORT_LINE_RE = re.compile(r"\s+Port (\d+):\s+(\w+)(.*)")
+
+
+def _invalidate_libusb_cache() -> None:
+    """Drop pyusb's cached libusb context so the next scan re-enumerates.
+
+    pyusb's `usb.backend.libusb1` caches a `_lib_object` at module level
+    on first use. In a long-lived process the cached context never
+    notices that a USB device disappeared and re-appeared at a new bus
+    address — `usb.core.find()` keeps returning the stale list.
+
+    We call this only after `power_on()`, never after `power_off()`.
+    Reason: re-creating a libusb context triggers a fresh USB
+    enumeration, which the kernel handles by resuming the hub if it
+    was auto-suspended. That resume re-energizes any port we just
+    powered off, so on hubs with autosuspend enabled (like the
+    2109:3431 we use on hector) a refresh after `power_off()` would
+    immediately undo the off. After `power_on()` the port is supposed
+    to be powered anyway, so the resume is harmless and we get an
+    up-to-date device list.
+    """
+    usb.backend.libusb1._lib_object = None
+    usb.backend.libusb1._lib = None
 
 
 def _run(*args: str) -> str:
@@ -81,10 +105,19 @@ def set_port_power(hub: str, port: int, on: bool) -> None:
 
 def power_on(hub: str, port: int) -> None:
     set_port_power(hub, port, on=True)
+    # Device just (re-)appeared at a new bus address; drop libusb's
+    # cached enumeration so the next scan sees the live state.
+    _invalidate_libusb_cache()
 
 
 def power_off(hub: str, port: int) -> None:
     set_port_power(hub, port, on=False)
+    # Deliberately NOT invalidating the libusb cache here — see
+    # `_invalidate_libusb_cache` docstring. A libusb re-init would
+    # trigger a hub auto-resume that re-energizes the port we just
+    # turned off. Callers that need to read accurate USB topology
+    # while a port is off should use uhubctl-based status (`/api/
+    # power/status`) rather than libusb-based device enumeration.
 
 
 # Module-global, intentionally unlocked. waitress serves requests on
