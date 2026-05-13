@@ -80,7 +80,9 @@ jobs:
 
       - name: Compute short SHA
         id: sha
-        run: echo "short=$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_OUTPUT"
+        env:
+          SHA: ${{ github.sha }}
+        run: echo "short=${SHA:0:7}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push multi-platform
         uses: docker/build-push-action@v6
