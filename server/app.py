@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, redirect, request, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
@@ -103,6 +103,37 @@ def api_health():
         version = json.load(f)["version"]
 
     return jsonify(status="ok", version=version)
+
+
+# --- Captive portal detection ---
+# When the Pi is in AP mode, DNS resolves all domains to it. OS captive portal
+# checks hit these well-known URLs. Returning a redirect (instead of the expected
+# "Success"/204) makes the OS open a browser window showing our app.
+
+PORTAL_REDIRECT = "http://10.42.0.1:5000/"
+
+
+@app.route("/hotspot-detect.html")  # Apple (iOS, macOS)
+@app.route("/library/test/success.html")  # Apple (older)
+def captive_apple():
+    return redirect(PORTAL_REDIRECT)
+
+
+@app.route("/generate_204")  # Android
+@app.route("/gen_204")  # Android (alt)
+def captive_android():
+    return redirect(PORTAL_REDIRECT)
+
+
+@app.route("/connecttest.txt")  # Windows
+@app.route("/ncsi.txt")  # Windows (alt)
+def captive_windows():
+    return redirect(PORTAL_REDIRECT)
+
+
+@app.route("/canonical.html")  # Firefox
+def captive_firefox():
+    return redirect(PORTAL_REDIRECT)
 
 
 # --- Static file serving for production (SPA fallback) ---
