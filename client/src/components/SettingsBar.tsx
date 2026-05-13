@@ -33,6 +33,16 @@ export function SettingsBar() {
   // - Support printer-specific preset configurations
   const showPrinterSelector = availablePrinters.length > 1;
 
+  // Hide the USB power toggle when a virtual printer is selected —
+  // virtual printers don't have a USB port to power off. When
+  // Auto-select is active or a real USB printer is selected, the
+  // toggle stays visible (and itself hides if the server can't
+  // resolve a controllable port).
+  const selectedPrinter = settings.printerId
+    ? availablePrinters.find((p) => p.id === settings.printerId)
+    : null;
+  const selectedIsVirtual = selectedPrinter?.vendorProductId === "virtual";
+
   return (
     <details className="bg-white rounded-lg shadow">
       <summary className="cursor-pointer select-none p-3 text-sm font-medium text-gray-700">
@@ -67,7 +77,7 @@ export function SettingsBar() {
         </>
       )}
 
-      <PowerToggle />
+      {!selectedIsVirtual && <PowerToggle />}
 
       <Field label="Tape (mm)">
         <select
