@@ -140,3 +140,37 @@ class TestPowerOnOff:
         assert mock_run.call_args[0][0] == [
             usb_power.UHUBCTL_BIN, "-l", "2-3", "-p", "4", "-a", "on"
         ]
+
+
+class TestLibusbCacheInvalidation:
+    """power_on must invalidate the pyusb libusb cache so the next scan
+    re-enumerates the device that just came back. power_off must NOT
+    invalidate it — re-creating a libusb context triggers a kernel hub
+    auto-resume that would immediately re-energize the port we just
+    powered off (observed on the 2109:3431 hub on hector)."""
+
+    def test_power_on_clears_libusb_cache(self, mock_run):
+        import usb.backend.libusb1
+
+        usb.backend.libusb1._lib_object = "sentinel"
+        usb.backend.libusb1._lib = "sentinel"
+
+        mock_run.return_value = _result("OK")
+        usb_power.power_on("1-1", 3)
+
+        assert usb.backend.libusb1._lib_object is None
+        assert usb.backend.libusb1._lib is None
+
+    def test_power_off_does_NOT_clear_libusb_cache(self, mock_run):
+        """Critical: clearing the cache after `off` would re-trigger the
+        kernel hub resume and undo the off. Leave it stale."""
+        import usb.backend.libusb1
+
+        usb.backend.libusb1._lib_object = "sentinel"
+        usb.backend.libusb1._lib = "sentinel"
+
+        mock_run.return_value = _result("OK")
+        usb_power.power_off("1-1", 3)
+
+        assert usb.backend.libusb1._lib_object == "sentinel"
+        assert usb.backend.libusb1._lib == "sentinel"
