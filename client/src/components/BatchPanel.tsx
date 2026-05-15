@@ -28,8 +28,29 @@ export function BatchPanel() {
   const setBatchRow = useLabelStore((s) => s.setBatchRow);
   const addBatchRow = useLabelStore((s) => s.addBatchRow);
   const removeBatchRow = useLabelStore((s) => s.removeBatchRow);
+  const addTextWidget = useLabelStore((s) => s.addTextWidget);
+  const updateWidget = useLabelStore((s) => s.updateWidget);
 
   const variables = useMemo(() => detectVariables(widgets), [widgets]);
+
+  const handleAddVariable = () => {
+    const state = useLabelStore.getState();
+    const existing = new Set(detectVariables(state.widgets));
+    let i = 1;
+    while (existing.has(`var${i}`)) i++;
+    const placeholder = `:var${i}:`;
+
+    const firstText = state.widgets.find((w) => w.type === "text");
+    if (firstText) {
+      const sep = firstText.text.length > 0 ? " " : "";
+      updateWidget(firstText.id, { text: `${firstText.text}${sep}${placeholder}` });
+    } else {
+      addTextWidget();
+      const after = useLabelStore.getState().widgets;
+      const added = after[after.length - 1];
+      if (added) updateWidget(added.id, { text: placeholder });
+    }
+  };
 
   return (
     <details
@@ -76,10 +97,17 @@ export function BatchPanel() {
         </div>
 
         {variables.length === 0 ? (
-          <p className="text-gray-400 text-xs">
-            Use <code className="bg-gray-100 px-1 rounded">:varname:</code> in
-            widget text to define variables.
-          </p>
+          <div className="space-y-2">
+            <p className="text-gray-400 text-xs">
+              Add a variable, or type <code className="bg-gray-100 px-1 rounded">:varname:</code> into a widget.
+            </p>
+            <button
+              className="text-blue-600 hover:text-blue-800 text-xs"
+              onClick={handleAddVariable}
+            >
+              + Add Variable
+            </button>
+          </div>
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -166,12 +194,20 @@ export function BatchPanel() {
                 </tbody>
               </table>
             </div>
-            <button
-              className="text-blue-600 hover:text-blue-800 text-xs"
-              onClick={addBatchRow}
-            >
-              + Add Row
-            </button>
+            <div className="flex gap-3">
+              <button
+                className="text-blue-600 hover:text-blue-800 text-xs"
+                onClick={addBatchRow}
+              >
+                + Add Row
+              </button>
+              <button
+                className="text-blue-600 hover:text-blue-800 text-xs"
+                onClick={handleAddVariable}
+              >
+                + Add Variable
+              </button>
+            </div>
           </>
         )}
       </div>
