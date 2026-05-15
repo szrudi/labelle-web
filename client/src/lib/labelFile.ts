@@ -78,7 +78,12 @@ export async function importLabel(
 }> {
   const data = JSON.parse(json) as LabelFile;
 
-  if (!data.version || !data.widgets || !data.settings) {
+  if (
+    typeof data.version !== "number" ||
+    data.version < 1 ||
+    !data.widgets ||
+    !data.settings
+  ) {
     throw new Error("Invalid label file");
   }
   if (data.version > 2) {
