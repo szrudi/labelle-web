@@ -119,6 +119,7 @@ describe("Settings", () => {
       foregroundColor: "black",
       backgroundColor: "white",
       showMargins: false,
+      cutMark: false,
     });
   });
 });
@@ -146,6 +147,7 @@ describe("Load", () => {
       foregroundColor: "blue",
       backgroundColor: "yellow",
       showMargins: true,
+      cutMark: false,
     };
 
     useLabelStore.getState().loadLabel(widgets, settings);

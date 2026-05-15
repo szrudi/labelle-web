@@ -1,5 +1,7 @@
 import traceback
 
+from PIL import Image
+
 from labelle.lib.devices.device_manager import DeviceManager
 from labelle.lib.devices.dymo_labeler import DymoLabeler
 
@@ -133,4 +135,81 @@ def print_label(
         device=device,
     )
     bitmap = render_payload(widgets, settings, upload_dir)
+    dymo_labeler.print(bitmap)
+
+
+def _bitmap_to_viewable(bitmap: Image.Image) -> Image.Image:
+    """Convert a labelle-convention mode-"1" payload (1 = ink) to a viewable
+    black-on-white image suitable for a virtual printer's PNG save."""
+    return bitmap.point(lambda v: 0 if v else 255, mode="L").convert("1")
+
+
+def _fallback_to_virtual_bitmap(
+    bitmap: Image.Image, widgets: list[dict], settings: dict
+) -> None:
+    """Print a pre-rendered bitmap to the first configured virtual printer."""
+    virtual_printers_config = get_virtual_printers()
+    if not virtual_printers_config:
+        raise ValueError(
+            "No printers available (no USB printers found and no virtual printers configured)"
+        )
+    config = virtual_printers_config[0]
+    vp = VirtualPrinter(
+        config["name"], config["path"], output_mode=config.get("output", "image")
+    )
+    vp.save(_bitmap_to_viewable(bitmap), widgets, settings)
+
+
+def print_bitmap(
+    bitmap: Image.Image,
+    settings: dict,
+    printer_id: str | None = None,
+    widgets: list[dict] | None = None,
+) -> None:
+    """Send a pre-rendered mode-"1" bitmap to the printer.
+
+    Used by callers that need to post-process a rendered payload before
+    sending it (the cut-mark path mutates the bitmap to inject a dotted
+    column into the trailing margin), so going back through
+    `render_payload()` inside `print_label()` would discard that change.
+
+    Behaviour mirrors `print_label()` apart from skipping the render step:
+    virtual printers respect their configured `output_mode` (image / json
+    / both) and an auto-select USB failure falls back to the first
+    virtual printer rather than silently dropping the print.
+    """
+    widgets = widgets or []
+
+    # Virtual printer
+    if printer_id and printer_id.startswith("virtual:"):
+        virtual_printer = _find_virtual_printer(printer_id)
+        virtual_printer.save(_bitmap_to_viewable(bitmap), widgets, settings)
+        return
+
+    # Try real USB printer
+    device = None
+    try:
+        device_manager = DeviceManager()
+        device_manager.scan()
+        if printer_id:
+            matching = [d for d in device_manager.devices if d.usb_id == printer_id]
+            if not matching:
+                raise ValueError(f"Printer not found: {printer_id}")
+            device = matching[0]
+        else:
+            device = device_manager.find_and_select_device()
+    except Exception:
+        if printer_id:
+            raise
+        # Auto-select failed: fall back to the first virtual printer rather
+        # than silently swallowing the print and emitting a misleading
+        # `printed` SSE event upstream.
+        _fallback_to_virtual_bitmap(bitmap, widgets, settings)
+        return
+
+    device.setup()
+    dymo_labeler = DymoLabeler(
+        tape_size_mm=settings.get("tapeSizeMm", 12),
+        device=device,
+    )
     dymo_labeler.print(bitmap)

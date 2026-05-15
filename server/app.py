@@ -15,12 +15,13 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 from flask import Flask, Response, jsonify, request, send_from_directory
 from flask_cors import CORS
+from labelle.lib.constants import DEFAULT_MARGIN_PX
 from werkzeug.utils import secure_filename
 
 import power_save
 import usb_power
-from label_builder import preview_label
-from printer_service import list_printers, print_label
+from label_builder import paint_cut_mark_in_trailing_margin, preview_label, render_payload
+from printer_service import list_printers, print_bitmap, print_label
 
 # Seconds to wait after power-on before reading status, so the device has
 # time to re-enumerate on the USB bus.
@@ -89,6 +90,22 @@ def _track_activity_and_wake_printer():
 
 
 power_save.start()
+
+
+def _print_label_with_cut_mark(
+    widgets: list, settings: dict, printer_id: str | None
+) -> None:
+    """Print a label with a cut mark painted into its trailing margin.
+
+    Renders the label normally then injects the dotted column into the
+    already-allocated trailing blank — no extra tape consumed, dot
+    sits in the middle of what would otherwise be the inter-label gap.
+    """
+    bitmap = render_payload(widgets, settings, upload_dir=UPLOAD_DIR)
+    paint_cut_mark_in_trailing_margin(
+        bitmap, margin_px=settings.get("marginPx", DEFAULT_MARGIN_PX)
+    )
+    print_bitmap(bitmap, settings, printer_id=printer_id, widgets=widgets)
 
 
 @app.route("/api/print", methods=["POST"])
@@ -397,7 +414,15 @@ def api_batch_print():
 
                 try:
                     substituted = _substitute_widgets(widgets, row_values)
-                    print_label(substituted, settings, upload_dir=UPLOAD_DIR, printer_id=printer_id)
+                    # Paint the cut mark into the trailing margin of every
+                    # label except the last — that gap is already there
+                    # (labelle builds ~14 mm of trailing blank into each
+                    # label's bitmap), so the dot lands in its centre with
+                    # zero extra tape.
+                    if idx < total - 1 and settings.get("cutMark"):
+                        _print_label_with_cut_mark(substituted, settings, printer_id)
+                    else:
+                        print_label(substituted, settings, upload_dir=UPLOAD_DIR, printer_id=printer_id)
                 except Exception as e:
                     traceback.print_exc()
                     yield f"data: {json.dumps({'event': 'error', 'index': idx, 'message': str(e)})}\n\n"

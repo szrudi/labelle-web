@@ -42,6 +42,7 @@ beforeEach(() => {
       foregroundColor: "black",
       backgroundColor: "white",
       showMargins: false,
+      cutMark: false,
     },
   });
 });

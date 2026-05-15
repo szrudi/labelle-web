@@ -31,6 +31,58 @@ def mm_to_payload_px(mm: float, margin: float) -> float:
     return max(0, (mm * PIXELS_PER_MM) - margin * 2)
 
 
+# Cut-mark pattern. CUT_MARK_ON pixels on, CUT_MARK_OFF off, repeated for the
+# tape's full height. A column of dotted pixels painted into the trailing
+# margin of each batch label (except the last) so the user can tear/cut
+# between them. See paint_cut_mark_in_trailing_margin below for placement.
+CUT_MARK_ON = 1
+CUT_MARK_OFF = 2
+CUT_MARK_WIDTH_PX = 1
+
+
+def paint_cut_mark_in_trailing_margin(bitmap: Image.Image, margin_px: int) -> None:
+    """Paint a dotted column INTO an already-rendered label bitmap, in the
+    middle of its trailing-margin zone. Mutates the bitmap in place.
+
+    Why this design: each labelle label bitmap is built as
+    `[content][~14 mm trailing margin]` (visible margin + labeler-margin
+    compensation). The next label in a batch has no leading blank
+    (paste offset clips its first column). So adding a separate
+    cut-mark print between labels lands the dots flush against the
+    next label's content edge — visually flush, not centered.
+
+    Painting INTO the trailing zone puts the dotted column inside the
+    14 mm that's already there, no extra tape consumed, and the
+    dot sits in the middle of the visible inter-label gap.
+
+    Position: width - margin_px, which is roughly the centre of the
+    right trailing-margin zone for a typical centre-justified label.
+
+    Labelle payload convention: mode "1" with 1 = ink, 0 = no ink.
+    """
+    width, height = bitmap.size
+    # margin_px == 0 is valid in the UI (SettingsBar allows it). Treat it
+    # as "paint at the rightmost column" so the cut mark still appears
+    # rather than silently doing nothing.
+    if margin_px <= 0:
+        x = width - CUT_MARK_WIDTH_PX
+    else:
+        x = width - margin_px
+    # If the bitmap is narrower than the margin (degenerate input), there is
+    # no trailing-margin zone to paint into — skip rather than landing the
+    # dots in the content area.
+    if x < 0 or x >= width:
+        return
+    pixels = bitmap.load()
+    step = CUT_MARK_ON + CUT_MARK_OFF
+    for y in range(0, height, step):
+        for dy in range(CUT_MARK_ON):
+            if y + dy < height:
+                for ox in range(CUT_MARK_WIDTH_PX):
+                    if x + ox < width:
+                        pixels[x + ox, y + dy] = 1
+
+
 def _build_render_engines(
     widgets: list[dict], upload_dir: str = "",
 ) -> list[RenderEngine]:

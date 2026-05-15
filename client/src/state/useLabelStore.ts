@@ -73,6 +73,7 @@ export const useLabelStore = create<LabelStore>((set) => ({
     foregroundColor: "black",
     backgroundColor: "white",
     showMargins: false,
+    cutMark: false,
   },
 
   availablePrinters: [],

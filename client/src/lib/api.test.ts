@@ -33,6 +33,7 @@ const sampleSettings: LabelSettings = {
   foregroundColor: "black",
   backgroundColor: "white",
   showMargins: false,
+  cutMark: false,
 };
 
 describe("fetchPrinters", () => {
