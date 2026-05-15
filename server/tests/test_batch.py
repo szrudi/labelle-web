@@ -1,6 +1,5 @@
 """Tests for the /api/batch-print and /api/batch-print/cancel endpoints."""
 import json
-import time
 from unittest.mock import patch
 
 import pytest
