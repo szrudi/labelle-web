@@ -219,14 +219,19 @@ def api_power_off():
 
 
 def _substitute_widgets(widgets, values):
-    """Replace :varname: placeholders in widget text/content fields."""
+    """Replace :varname: placeholders in widget text/content fields.
+
+    Values are coerced to str so a stray non-string slipping past validation
+    doesn't crash re.sub's callback.
+    """
     result = copy.deepcopy(widgets)
     pattern = re.compile(r":(\w+):")
     for widget in result:
         for field in ("text", "content"):
             if field in widget and isinstance(widget[field], str):
                 widget[field] = pattern.sub(
-                    lambda m: values.get(m.group(1), m.group(0)), widget[field]
+                    lambda m: str(values.get(m.group(1), m.group(0))),
+                    widget[field],
                 )
     return result
 
@@ -254,6 +259,16 @@ def api_batch_print():
         return jsonify(status="error", message="No rows provided"), 400
     if len(rows) > MAX_BATCH_ROWS:
         return jsonify(status="error", message=f"Too many rows (max {MAX_BATCH_ROWS})"), 400
+
+    # Validate row shape up front so failures surface as clean 400s rather
+    # than blowing up the SSE stream mid-print. Coerce values to strings so
+    # `{name: 42}` becomes `{name: "42"}` instead of crashing re.sub later.
+    normalised_rows = []
+    for i, row in enumerate(rows):
+        if not isinstance(row, dict):
+            return jsonify(status="error", message=f"Row {i} must be an object"), 400
+        normalised_rows.append({str(k): str(v) for k, v in row.items()})
+    rows = normalised_rows
 
     total = len(rows) * copies
     if total > MAX_BATCH_TOTAL:
@@ -294,8 +309,8 @@ def api_batch_print():
                 # outlives it.
                 power_save.record_activity()
 
-                substituted = _substitute_widgets(widgets, row_values)
                 try:
+                    substituted = _substitute_widgets(widgets, row_values)
                     print_label(substituted, settings, upload_dir=UPLOAD_DIR, printer_id=printer_id)
                 except Exception as e:
                     traceback.print_exc()

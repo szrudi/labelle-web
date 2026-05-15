@@ -116,6 +116,37 @@ class TestBatchPrintValidation:
         assert resp.status_code == 400
         assert "Batch too large" in resp.json["message"]
 
+    def test_non_dict_row_returns_400(self, client):
+        resp = client.post(
+            "/api/batch-print",
+            data=json.dumps({
+                "widgets": [_widget()],
+                "settings": _settings(),
+                "rows": [{"name": "A"}, "not-a-dict"],
+            }),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "Row 1" in resp.json["message"]
+
+    @patch("app.print_label")
+    def test_non_string_value_is_coerced(self, mock_print, client):
+        # Non-string values shouldn't crash the SSE stream — they get coerced
+        # to strings during row validation.
+        resp = client.post(
+            "/api/batch-print",
+            data=json.dumps({
+                "widgets": [_widget()],
+                "settings": _settings(),
+                "rows": [{"name": 42}],
+            }),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        _read_sse(resp)
+        call_widgets = mock_print.call_args_list[0][0][0]
+        assert call_widgets[0]["text"] == "Hello 42"
+
 
 class TestBatchPrintExecution:
     @patch("app.print_label")
