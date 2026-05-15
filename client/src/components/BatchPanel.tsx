@@ -107,33 +107,6 @@ export function BatchPanel() {
           />
           <span className="text-gray-700">Enable batch printing</span>
         </label>
-        <div className="flex flex-wrap gap-4">
-          <label className="flex items-center gap-1.5">
-            <span className="text-gray-600">Copies</span>
-            <input
-              type="number"
-              className="input w-20"
-              min={1}
-              max={MAX_BATCH_COPIES}
-              value={copiesInput}
-              onChange={(e) => setCopiesInput(e.target.value)}
-              onBlur={commitCopies}
-            />
-          </label>
-          <label className="flex items-center gap-1.5">
-            <span className="text-gray-600">Pause (s)</span>
-            <input
-              type="number"
-              className="input w-20"
-              min={0}
-              max={MAX_BATCH_PAUSE_SECONDS}
-              step={0.5}
-              value={pauseInput}
-              onChange={(e) => setPauseInput(e.target.value)}
-              onBlur={commitPause}
-            />
-          </label>
-        </div>
 
         {variables.length === 0 ? (
           <div className="space-y-2">
@@ -262,6 +235,34 @@ export function BatchPanel() {
             </div>
           </>
         )}
+
+        <div className="flex flex-wrap gap-4 pt-1 border-t border-gray-100">
+          <label className="flex items-center gap-1.5">
+            <span className="text-gray-600">Copies</span>
+            <input
+              type="number"
+              className="input w-20"
+              min={1}
+              max={MAX_BATCH_COPIES}
+              value={copiesInput}
+              onChange={(e) => setCopiesInput(e.target.value)}
+              onBlur={commitCopies}
+            />
+          </label>
+          <label className="flex items-center gap-1.5">
+            <span className="text-gray-600">Pause (s)</span>
+            <input
+              type="number"
+              className="input w-20"
+              min={0}
+              max={MAX_BATCH_PAUSE_SECONDS}
+              step={0.5}
+              value={pauseInput}
+              onChange={(e) => setPauseInput(e.target.value)}
+              onBlur={commitPause}
+            />
+          </label>
+        </div>
       </div>
     </details>
   );
