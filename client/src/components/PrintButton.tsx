@@ -14,10 +14,19 @@ export function PrintButton() {
   const jobIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // On unmount, abort any in-flight batch stream so onProgress doesn't fire
-  // setStatus on a torn-down component.
+  // On unmount, abort the client-side SSE read AND tell the server to stop
+  // — otherwise the server-side print loop keeps running and the next mount
+  // will hit 409 until it finishes.
   useEffect(() => {
-    return () => abortRef.current?.abort();
+    return () => {
+      abortRef.current?.abort();
+      const jobId = jobIdRef.current;
+      if (jobId) {
+        cancelBatchPrint(jobId).catch(() => {
+          // Nothing useful to do on unmount.
+        });
+      }
+    };
   }, []);
 
   const totalLabels = batch.enabled
