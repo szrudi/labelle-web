@@ -32,8 +32,9 @@ def mm_to_payload_px(mm: float, margin: float) -> float:
 
 
 # Cut-mark pattern. CUT_MARK_ON pixels on, CUT_MARK_OFF off, repeated for the
-# tape's full height. A column of dotted pixels printed on its own short tape
-# strip between batch-printed labels so the user can tear/cut between them.
+# tape's full height. A column of dotted pixels painted into the trailing
+# margin of each batch label (except the last) so the user can tear/cut
+# between them. See paint_cut_mark_in_trailing_margin below for placement.
 CUT_MARK_ON = 1
 CUT_MARK_OFF = 2
 CUT_MARK_WIDTH_PX = 1
