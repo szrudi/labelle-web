@@ -248,6 +248,15 @@ def api_batch_print():
     printer_id = settings.get("printerId")
     rows = data.get("rows", [])
 
+    # Presence checks first: a user with both missing widgets and bad
+    # copies should hear about the more fundamental problem first.
+    if not widgets or not isinstance(widgets, list) or len(widgets) == 0:
+        return jsonify(status="error", message="No widgets provided"), 400
+    if not rows or not isinstance(rows, list):
+        return jsonify(status="error", message="No rows provided"), 400
+    if len(rows) > MAX_BATCH_ROWS:
+        return jsonify(status="error", message=f"Too many rows (max {MAX_BATCH_ROWS})"), 400
+
     try:
         copies = int(data.get("copies", 1))
         pause_time = float(data.get("pauseTime", 0))
@@ -262,15 +271,8 @@ def api_batch_print():
     if pause_time < 0 or pause_time > MAX_BATCH_PAUSE_SECONDS:
         return jsonify(
             status="error",
-            message=f"pauseTime must be between 0 and {MAX_BATCH_PAUSE_SECONDS} seconds",
+            message=f"pauseTime must be between 0 and {MAX_BATCH_PAUSE_SECONDS:g} seconds",
         ), 400
-
-    if not widgets or not isinstance(widgets, list) or len(widgets) == 0:
-        return jsonify(status="error", message="No widgets provided"), 400
-    if not rows or not isinstance(rows, list):
-        return jsonify(status="error", message="No rows provided"), 400
-    if len(rows) > MAX_BATCH_ROWS:
-        return jsonify(status="error", message=f"Too many rows (max {MAX_BATCH_ROWS})"), 400
 
     # Validate row shape up front so failures surface as clean 400s rather
     # than blowing up the SSE stream mid-print. Coerce values to strings so

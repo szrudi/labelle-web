@@ -11,7 +11,10 @@ def client(virtual_printer_env):
 
     app.config["TESTING"] = True
     # Drain any leftover jobs from prior tests (the module-level dict is
-    # process-wide and tests share it).
+    # process-wide and tests share it). Mutating _batch_jobs here and in
+    # individual tests bypasses _batch_lock intentionally — Flask's test
+    # client runs requests serially so there's no concurrency to guard
+    # against. Don't copy this pattern into production code.
     from app import _batch_jobs
 
     _batch_jobs.clear()
