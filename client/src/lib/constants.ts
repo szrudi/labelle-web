@@ -5,6 +5,12 @@ export const TAPE_SIZES: TapeSize[] = [6, 9, 12, 19];
 export const DEFAULT_MARGIN_PX = 56;
 export const DEFAULT_FONT_SCALE = 90;
 
+// Mirror of MAX_BATCH_COPIES / MAX_BATCH_PAUSE_SECONDS in server/app.py.
+// Kept in sync manually — the server is the source of truth and will
+// reject out-of-range values with a 400.
+export const MAX_BATCH_COPIES = 999;
+export const MAX_BATCH_PAUSE_SECONDS = 60;
+
 export const BARCODE_TYPES: { value: BarcodeType; label: string }[] = [
   { value: "code128", label: "CODE128" },
   { value: "code39", label: "CODE39" },

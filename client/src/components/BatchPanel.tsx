@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLabelStore } from "../state/useLabelStore";
 import { detectVariables } from "../lib/variables";
+import { MAX_BATCH_COPIES, MAX_BATCH_PAUSE_SECONDS } from "../lib/constants";
 
 function EyeIcon({ active }: { active: boolean }) {
   return (
@@ -51,12 +52,18 @@ export function BatchPanel() {
   useEffect(() => setPauseInput(String(batch.pauseTime)), [batch.pauseTime]);
 
   const commitCopies = () => {
-    const n = Math.max(1, Math.min(999, Number(copiesInput) || 1));
+    const parsed = Number(copiesInput);
+    const n = Number.isFinite(parsed)
+      ? Math.max(1, Math.min(MAX_BATCH_COPIES, parsed))
+      : 1;
     updateBatch({ copies: n });
     setCopiesInput(String(n));
   };
   const commitPause = () => {
-    const n = Math.max(0, Math.min(60, Number(pauseInput) || 0));
+    const parsed = Number(pauseInput);
+    const n = Number.isFinite(parsed)
+      ? Math.max(0, Math.min(MAX_BATCH_PAUSE_SECONDS, parsed))
+      : 0;
     updateBatch({ pauseTime: n });
     setPauseInput(String(n));
   };
@@ -103,7 +110,7 @@ export function BatchPanel() {
               type="number"
               className="input w-20"
               min={1}
-              max={999}
+              max={MAX_BATCH_COPIES}
               value={copiesInput}
               onChange={(e) => setCopiesInput(e.target.value)}
               onBlur={commitCopies}
@@ -115,7 +122,7 @@ export function BatchPanel() {
               type="number"
               className="input w-20"
               min={0}
-              max={60}
+              max={MAX_BATCH_PAUSE_SECONDS}
               step={0.5}
               value={pauseInput}
               onChange={(e) => setPauseInput(e.target.value)}
