@@ -27,7 +27,7 @@ interface LabelStore {
   availablePrinters: PrinterInfo[];
   batch: BatchState;
 
-  addTextWidget: () => void;
+  addTextWidget: () => string;
   addQrWidget: () => void;
   addBarcodeWidget: () => void;
   addImageWidget: (filename: string) => void;
@@ -74,12 +74,13 @@ export const useLabelStore = create<LabelStore>((set) => ({
 
   batch: { ...DEFAULT_BATCH },
 
-  addTextWidget: () =>
+  addTextWidget: () => {
+    const id = uuidv4();
     set((s) => ({
       widgets: [
         ...s.widgets,
         {
-          id: uuidv4(),
+          id,
           type: "text",
           text: "",
           fontStyle: "regular",
@@ -88,7 +89,9 @@ export const useLabelStore = create<LabelStore>((set) => ({
           align: "left",
         } satisfies TextWidget,
       ],
-    })),
+    }));
+    return id;
+  },
 
   addQrWidget: () =>
     set((s) => ({

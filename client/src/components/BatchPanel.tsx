@@ -68,10 +68,8 @@ export function BatchPanel() {
       const sep = firstText.text.length > 0 ? " " : "";
       updateWidget(firstText.id, { text: `${firstText.text}${sep}${placeholder}` });
     } else {
-      addTextWidget();
-      const after = useLabelStore.getState().widgets;
-      const added = after[after.length - 1];
-      if (added) updateWidget(added.id, { text: placeholder });
+      const newId = addTextWidget();
+      updateWidget(newId, { text: placeholder });
     }
   };
 
