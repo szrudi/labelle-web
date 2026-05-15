@@ -91,12 +91,22 @@ def _track_activity_and_wake_printer():
 power_save.start()
 
 
-def _with_cut_mark(widgets: list, settings: dict) -> list:
-    """Append a dotted cut-mark widget on the right edge if settings.cutMark
-    is true. Keeps the original list unmodified."""
-    if settings.get("cutMark"):
-        return widgets + [{"type": "cutMark"}]
-    return widgets
+def _print_cut_mark(settings: dict, printer_id: str | None) -> None:
+    """Print a dotted cut-mark strip as a separate label.
+
+    Issued between successive labels in a batch so the dots sit outside
+    each label's margins (the leader/trailer margins of the cut-mark
+    strip and the adjacent labels form the natural cut zone). marginPx
+    and minLengthMm are zeroed so the strip is just the dotted column
+    plus the printer's unavoidable physical margins.
+    """
+    cut_settings = {**settings, "marginPx": 0, "minLengthMm": 0}
+    print_label(
+        [{"type": "cutMark"}],
+        cut_settings,
+        upload_dir=UPLOAD_DIR,
+        printer_id=printer_id,
+    )
 
 
 @app.route("/api/print", methods=["POST"])
@@ -110,7 +120,7 @@ def api_print():
         return jsonify(status="error", message="No widgets provided"), 400
 
     try:
-        print_label(_with_cut_mark(widgets, settings), settings, upload_dir=UPLOAD_DIR, printer_id=printer_id)
+        print_label(widgets, settings, upload_dir=UPLOAD_DIR, printer_id=printer_id)
         return jsonify(status="success", message="Label sent to printer.")
     except Exception as e:
         traceback.print_exc()
@@ -127,7 +137,7 @@ def api_preview():
         return jsonify(status="error", message="No widgets provided"), 400
 
     try:
-        png_bytes = preview_label(_with_cut_mark(widgets, settings), settings, upload_dir=UPLOAD_DIR)
+        png_bytes = preview_label(widgets, settings, upload_dir=UPLOAD_DIR)
         return app.response_class(png_bytes, mimetype="image/png")
     except Exception as e:
         traceback.print_exc()
@@ -404,8 +414,14 @@ def api_batch_print():
                 power_save.record_activity()
 
                 try:
+                    # Cut mark between successive labels (not before the
+                    # first, not after the last) — sits in its own tape
+                    # strip so the labeler margins of each side form the
+                    # natural cut zone.
+                    if idx > 0 and settings.get("cutMark"):
+                        _print_cut_mark(settings, printer_id)
                     substituted = _substitute_widgets(widgets, row_values)
-                    print_label(_with_cut_mark(substituted, settings), settings, upload_dir=UPLOAD_DIR, printer_id=printer_id)
+                    print_label(substituted, settings, upload_dir=UPLOAD_DIR, printer_id=printer_id)
                 except Exception as e:
                     traceback.print_exc()
                     yield f"data: {json.dumps({'event': 'error', 'index': idx, 'message': str(e)})}\n\n"
