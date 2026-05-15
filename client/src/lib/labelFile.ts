@@ -1,11 +1,22 @@
 import { v4 as uuidv4 } from "uuid";
-import type { LabelWidget, LabelSettings } from "../types/label";
+import type { LabelWidget, LabelSettings, BatchState } from "../types/label";
 import { uploadImage } from "./api";
+import { MAX_BATCH_COPIES, MAX_BATCH_PAUSE_SECONDS } from "./constants";
+
+// All fields optional: importLabel tolerates missing keys with safe
+// defaults, and `??` fallbacks at the use site only fire on
+// undefined — required types would lie about the runtime contract.
+interface LabelFileBatch {
+  copies?: number;
+  pauseTime?: number;
+  rows?: Record<string, string>[];
+}
 
 interface LabelFile {
   version: number;
   widgets: Record<string, unknown>[];
   settings: LabelSettings;
+  batch?: LabelFileBatch;
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {
@@ -15,6 +26,14 @@ function blobToDataUrl(blob: Blob): Promise<string> {
     r.onerror = () => reject(r.error);
     r.readAsDataURL(blob);
   });
+}
+
+function _hasBatchData(batch: BatchState): boolean {
+  if (batch.copies !== 1) return true;
+  if (batch.pauseTime !== 0) return true;
+  if (batch.rows.length > 1) return true;
+  if (batch.rows.some((r) => Object.keys(r.values).length > 0)) return true;
+  return false;
 }
 
 function dataUrlToFile(dataUrl: string, filename: string): File {
@@ -32,6 +51,7 @@ function dataUrlToFile(dataUrl: string, filename: string): File {
 export async function exportLabel(
   widgets: LabelWidget[],
   settings: LabelSettings,
+  batch?: BatchState,
 ): Promise<string> {
   const exportWidgets: Record<string, unknown>[] = [];
 
@@ -48,17 +68,45 @@ export async function exportLabel(
     }
   }
 
-  const data: LabelFile = { version: 1, settings, widgets: exportWidgets };
+  const data: LabelFile = { version: 2, settings, widgets: exportWidgets };
+
+  // Export the batch block whenever the user has touched anything in the
+  // panel (rows with values, or non-default copies/pause). Batch mode is
+  // derived from variable presence at runtime, so there's no on/off flag
+  // to persist.
+  if (batch && _hasBatchData(batch)) {
+    data.batch = {
+      copies: batch.copies,
+      pauseTime: batch.pauseTime,
+      // Strip the internal `id` — it's a runtime React-key concern only.
+      rows: batch.rows.map((r) => r.values),
+    };
+  }
+
   return JSON.stringify(data, null, 2);
 }
 
 export async function importLabel(
   json: string,
-): Promise<{ widgets: LabelWidget[]; settings: LabelSettings }> {
+): Promise<{
+  widgets: LabelWidget[];
+  settings: LabelSettings;
+  batch?: BatchState;
+}> {
   const data = JSON.parse(json) as LabelFile;
 
-  if (!data.version || !data.widgets || !data.settings) {
+  if (
+    typeof data.version !== "number" ||
+    data.version < 1 ||
+    !data.widgets ||
+    !data.settings
+  ) {
     throw new Error("Invalid label file");
+  }
+  if (data.version > 2) {
+    throw new Error(
+      `Unsupported label file version ${data.version}. Update Labelle Web to load this file.`,
+    );
   }
 
   const widgets: LabelWidget[] = [];
@@ -78,5 +126,61 @@ export async function importLabel(
     }
   }
 
-  return { widgets, settings: data.settings };
+  let batch: BatchState | undefined;
+  if (data.batch !== undefined) {
+    if (
+      typeof data.batch !== "object" ||
+      data.batch === null ||
+      Array.isArray(data.batch)
+    ) {
+      throw new Error("Invalid label file: batch must be an object");
+    }
+    const { copies, pauseTime, rows } = data.batch;
+    if (
+      copies !== undefined &&
+      (typeof copies !== "number" || copies < 1 || copies > MAX_BATCH_COPIES)
+    ) {
+      throw new Error(
+        `Invalid label file: batch.copies must be a number between 1 and ${MAX_BATCH_COPIES}`,
+      );
+    }
+    if (
+      pauseTime !== undefined &&
+      (typeof pauseTime !== "number" ||
+        pauseTime < 0 ||
+        pauseTime > MAX_BATCH_PAUSE_SECONDS)
+    ) {
+      throw new Error(
+        `Invalid label file: batch.pauseTime must be a number between 0 and ${MAX_BATCH_PAUSE_SECONDS}`,
+      );
+    }
+    if (rows !== undefined && !Array.isArray(rows)) {
+      throw new Error("Invalid label file: batch.rows must be an array");
+    }
+    if (rows) {
+      for (const row of rows) {
+        if (typeof row !== "object" || row === null || Array.isArray(row)) {
+          throw new Error("Invalid label file: batch.rows entries must be objects");
+        }
+        for (const v of Object.values(row)) {
+          if (typeof v !== "string") {
+            throw new Error("Invalid label file: batch.rows values must be strings");
+          }
+        }
+      }
+    }
+
+    const importedRows = (rows?.length ? rows : [{}]).map((values) => ({
+      id: uuidv4(),
+      values,
+    }));
+    batch = {
+      copies: copies ?? 1,
+      pauseTime: pauseTime ?? 0,
+      rows: importedRows,
+      selectedRowIndex: null,
+    };
+  }
+
+  return { widgets, settings: data.settings, batch };
 }

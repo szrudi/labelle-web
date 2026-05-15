@@ -75,6 +75,23 @@ export interface PowerStatus {
   connected: boolean;
 }
 
+export interface BatchRow {
+  // Stable id so React keys survive row reordering/removal. Internal only —
+  // stripped on export, regenerated on import.
+  id: string;
+  values: Record<string, string>;
+}
+
+// Batch mode is active when the widgets contain :variable: placeholders;
+// there is no explicit on/off flag. `rows` holds the per-label values that
+// only get exercised once variables exist.
+export interface BatchState {
+  copies: number;
+  pauseTime: number;
+  rows: BatchRow[];
+  selectedRowIndex: number | null;
+}
+
 export interface LabelSettings {
   tapeSizeMm: TapeSize;
   marginPx: number;

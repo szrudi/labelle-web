@@ -154,3 +154,186 @@ describe("Load", () => {
     expect(useLabelStore.getState().settings).toEqual(settings);
   });
 });
+
+describe("Variable rename in batch rows", () => {
+  function seedTextWidgetWith(text: string): string {
+    useLabelStore.setState({
+      widgets: [
+        {
+          id: "w1",
+          type: "text",
+          text,
+          fontStyle: "regular",
+          fontScale: DEFAULT_FONT_SCALE,
+          frameWidthPx: 0,
+          align: "left",
+        },
+      ],
+    });
+    return "w1";
+  }
+
+  function seedRows(values: Record<string, string>[]) {
+    return values.map((v, i) => ({ id: `r${i}`, values: v }));
+  }
+
+  function rowValues(idx = 0) {
+    return useLabelStore.getState().batch.rows[idx]?.values;
+  }
+
+  it("carries batch row values from old name to new on rename", () => {
+    const id = seedTextWidgetWith("Hi :name:");
+    useLabelStore.setState({
+      batch: {
+        copies: 1,
+        pauseTime: 0,
+        rows: seedRows([{ name: "Alice" }, { name: "Bob" }]),
+        selectedRowIndex: null,
+      },
+    });
+
+    useLabelStore.getState().updateWidget(id, { text: "Hi :full_name:" });
+
+    expect(rowValues(0)).toEqual({ full_name: "Alice" });
+    expect(rowValues(1)).toEqual({ full_name: "Bob" });
+  });
+
+  it("carries values through incremental typing edits", () => {
+    const id = seedTextWidgetWith(":name:");
+    useLabelStore.setState({
+      batch: {
+        copies: 1,
+        pauseTime: 0,
+        rows: seedRows([{ name: "Alice" }]),
+        selectedRowIndex: null,
+      },
+    });
+
+    // Simulate typing "name" -> "names"
+    useLabelStore.getState().updateWidget(id, { text: ":names:" });
+    expect(rowValues(0)).toEqual({ names: "Alice" });
+  });
+
+  it("does not touch rows when a variable is purely added", () => {
+    const id = seedTextWidgetWith(":name:");
+    useLabelStore.setState({
+      batch: {
+        copies: 1,
+        pauseTime: 0,
+        rows: seedRows([{ name: "Alice" }]),
+        selectedRowIndex: null,
+      },
+    });
+
+    useLabelStore.getState().updateWidget(id, { text: ":name: :age:" });
+
+    expect(rowValues(0)).toEqual({ name: "Alice" });
+  });
+
+  it("does not touch rows when a variable is purely removed", () => {
+    const id = seedTextWidgetWith(":name: :age:");
+    useLabelStore.setState({
+      batch: {
+        copies: 1,
+        pauseTime: 0,
+        rows: seedRows([{ name: "Alice", age: "30" }]),
+        selectedRowIndex: null,
+      },
+    });
+
+    useLabelStore.getState().updateWidget(id, { text: ":name:" });
+
+    // age value orphans but isn't reassigned to something else
+    expect(rowValues(0)).toEqual({ name: "Alice", age: "30" });
+  });
+
+  it("preserves row id across rename migration", () => {
+    const id = seedTextWidgetWith(":name:");
+    useLabelStore.setState({
+      batch: {
+        copies: 1,
+        pauseTime: 0,
+        rows: seedRows([{ name: "Alice" }]),
+        selectedRowIndex: null,
+      },
+    });
+
+    useLabelStore.getState().updateWidget(id, { text: ":full_name:" });
+
+    expect(useLabelStore.getState().batch.rows[0]?.id).toBe("r0");
+  });
+
+  it("propagates rename to other widgets that reference the same variable", () => {
+    useLabelStore.setState({
+      widgets: [
+        {
+          id: "w1",
+          type: "text",
+          text: "Hello :name:",
+          fontStyle: "regular",
+          fontScale: DEFAULT_FONT_SCALE,
+          frameWidthPx: 0,
+          align: "left",
+        },
+        { id: "w2", type: "qr", content: "user/:name:" },
+        { id: "w3", type: "barcode", content: ":name:", barcodeType: "code128", showText: false },
+      ],
+      batch: {
+        copies: 1,
+        pauseTime: 0,
+        rows: seedRows([{ name: "Alice" }]),
+        selectedRowIndex: null,
+      },
+    });
+
+    useLabelStore.getState().updateWidget("w1", { text: "Hello :full_name:" });
+
+    const widgets = useLabelStore.getState().widgets;
+    expect((widgets[0] as { text: string }).text).toBe("Hello :full_name:");
+    expect((widgets[1] as { content: string }).content).toBe("user/:full_name:");
+    expect((widgets[2] as { content: string }).content).toBe(":full_name:");
+    expect(rowValues(0)).toEqual({ full_name: "Alice" });
+  });
+
+  it("does not propagate when a different widget gets an unrelated edit", () => {
+    // Two unrelated edits in different widgets — without per-widget scoping
+    // the heuristic could see {removed:[a], added:[b]} from cross-widget
+    // bookkeeping and incorrectly carry values. Per-widget scoping prevents
+    // this: removing var from B doesn't migrate A's row data.
+    useLabelStore.setState({
+      widgets: [
+        {
+          id: "w1",
+          type: "text",
+          text: ":name:",
+          fontStyle: "regular",
+          fontScale: DEFAULT_FONT_SCALE,
+          frameWidthPx: 0,
+          align: "left",
+        },
+        {
+          id: "w2",
+          type: "text",
+          text: ":age:",
+          fontStyle: "regular",
+          fontScale: DEFAULT_FONT_SCALE,
+          frameWidthPx: 0,
+          align: "left",
+        },
+      ],
+      batch: {
+        copies: 1,
+        pauseTime: 0,
+        rows: seedRows([{ name: "Alice", age: "30" }]),
+        selectedRowIndex: null,
+      },
+    });
+
+    // Remove :age: from widget 2 only (a pure removal).
+    useLabelStore.getState().updateWidget("w2", { text: "" });
+
+    // Row data should be unchanged — age value orphans but name is not
+    // migrated into age (or vice versa).
+    expect(rowValues(0)).toEqual({ name: "Alice", age: "30" });
+  });
+});

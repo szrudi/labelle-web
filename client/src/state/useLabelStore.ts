@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import type {
   LabelWidget,
   LabelSettings,
+  BatchState,
   TextWidget,
   QrWidget,
   BarcodeWidget,
@@ -10,13 +11,28 @@ import type {
   PrinterInfo,
 } from "../types/label";
 import { DEFAULT_MARGIN_PX, DEFAULT_FONT_SCALE } from "../lib/constants";
+import { detectVariables } from "../lib/variables";
+
+function newBatchRow(values: Record<string, string> = {}) {
+  return { id: uuidv4(), values };
+}
+
+function defaultBatch(): BatchState {
+  return {
+    copies: 1,
+    pauseTime: 0,
+    rows: [newBatchRow()],
+    selectedRowIndex: null,
+  };
+}
 
 interface LabelStore {
   widgets: LabelWidget[];
   settings: LabelSettings;
   availablePrinters: PrinterInfo[];
+  batch: BatchState;
 
-  addTextWidget: () => void;
+  addTextWidget: () => string;
   addQrWidget: () => void;
   addBarcodeWidget: () => void;
   addImageWidget: (filename: string) => void;
@@ -25,7 +41,15 @@ interface LabelStore {
   updateWidget: (id: string, patch: Partial<LabelWidget>) => void;
   updateSettings: (patch: Partial<LabelSettings>) => void;
   setAvailablePrinters: (printers: PrinterInfo[]) => void;
-  loadLabel: (widgets: LabelWidget[], settings: LabelSettings) => void;
+  updateBatch: (patch: Partial<BatchState>) => void;
+  setBatchRow: (rowIndex: number, varName: string, value: string) => void;
+  addBatchRow: () => void;
+  removeBatchRow: (index: number) => void;
+  loadLabel: (
+    widgets: LabelWidget[],
+    settings: LabelSettings,
+    batch?: BatchState,
+  ) => void;
 }
 
 export const useLabelStore = create<LabelStore>((set) => ({
@@ -53,12 +77,15 @@ export const useLabelStore = create<LabelStore>((set) => ({
 
   availablePrinters: [],
 
-  addTextWidget: () =>
+  batch: defaultBatch(),
+
+  addTextWidget: () => {
+    const id = uuidv4();
     set((s) => ({
       widgets: [
         ...s.widgets,
         {
-          id: uuidv4(),
+          id,
           type: "text",
           text: "",
           fontStyle: "regular",
@@ -67,7 +94,9 @@ export const useLabelStore = create<LabelStore>((set) => ({
           align: "left",
         } satisfies TextWidget,
       ],
-    })),
+    }));
+    return id;
+  },
 
   addQrWidget: () =>
     set((s) => ({
@@ -121,16 +150,115 @@ export const useLabelStore = create<LabelStore>((set) => ({
     }),
 
   updateWidget: (id, patch) =>
-    set((s) => ({
-      widgets: s.widgets.map((w) =>
-        w.id === id ? ({ ...w, ...patch } as LabelWidget) : w,
-      ),
-    })),
+    set((s) => {
+      const oldWidget = s.widgets.find((w) => w.id === id);
+      if (!oldWidget) return s;
+      const newWidget = { ...oldWidget, ...patch } as LabelWidget;
+
+      // Variable rename detection: compare variables in JUST the changed
+      // widget. If exactly one disappeared and one appeared, treat it as a
+      // rename — propagate to other widgets and migrate the batch row key.
+      // Scoping to one widget avoids the cross-widget false-positive where
+      // unrelated edits in two widgets could each contribute a single add
+      // and remove.
+      //
+      // Known limitation: keystroke-by-keystroke typing in a controlled
+      // <input> (e.g. :name: -> :names -> :names:) hits an intermediate
+      // state with no closing colon, where detectVariables returns [].
+      // The transition then looks like a pure removal followed (one
+      // keystroke later) by a pure addition — neither half triggers the
+      // rename branch, and the row value for the old name orphans. In
+      // practice users edit via select-and-replace or paste, which works.
+      // See docs/ARCHITECTURE.md "Variable rename heuristic" for context.
+      const before = detectVariables([oldWidget]);
+      const after = detectVariables([newWidget]);
+      const removed = before.filter((v) => !after.includes(v));
+      const added = after.filter((v) => !before.includes(v));
+
+      if (removed.length === 1 && added.length === 1) {
+        const oldName = removed[0]!;
+        const newName = added[0]!;
+        // Variable names match \w+ — no regex escaping needed.
+        const placeholderRe = new RegExp(`:${oldName}:`, "g");
+        const newPlaceholder = `:${newName}:`;
+
+        const widgets = s.widgets.map((w) => {
+          if (w.id === id) return newWidget;
+          if (w.type === "text")
+            return { ...w, text: w.text.replace(placeholderRe, newPlaceholder) };
+          if (w.type === "qr" || w.type === "barcode")
+            return {
+              ...w,
+              content: w.content.replace(placeholderRe, newPlaceholder),
+            };
+          return w;
+        });
+
+        // Migrate row values keys. If `newName` already existed in the
+        // row (e.g. user renamed `:name:` -> `:full_name:` while
+        // another widget already used `:full_name:`), the rename takes
+        // precedence and the prior value is overwritten — the user's
+        // most recent edit wins.
+        const rows = s.batch.rows.map((row) => {
+          if (!(oldName in row.values)) return row;
+          const value = row.values[oldName] ?? "";
+          const nextValues: Record<string, string> = {};
+          for (const [k, v] of Object.entries(row.values)) {
+            if (k !== oldName) nextValues[k] = v;
+          }
+          nextValues[newName] = value;
+          return { ...row, values: nextValues };
+        });
+
+        return { widgets, batch: { ...s.batch, rows } };
+      }
+
+      const widgets = s.widgets.map((w) => (w.id === id ? newWidget : w));
+      return { widgets };
+    }),
 
   updateSettings: (patch) =>
     set((s) => ({ settings: { ...s.settings, ...patch } })),
 
   setAvailablePrinters: (printers) => set({ availablePrinters: printers }),
 
-  loadLabel: (widgets, settings) => set({ widgets, settings }),
+  updateBatch: (patch) =>
+    set((s) => ({ batch: { ...s.batch, ...patch } })),
+
+  setBatchRow: (rowIndex, varName, value) =>
+    set((s) => {
+      const rows = s.batch.rows.map((row, i) =>
+        i === rowIndex
+          ? { ...row, values: { ...row.values, [varName]: value } }
+          : row,
+      );
+      return { batch: { ...s.batch, rows } };
+    }),
+
+  addBatchRow: () =>
+    set((s) => ({
+      batch: { ...s.batch, rows: [...s.batch.rows, newBatchRow()] },
+    })),
+
+  removeBatchRow: (index) =>
+    set((s) => {
+      const rows = s.batch.rows.filter((_, i) => i !== index);
+      const selectedRowIndex =
+        s.batch.selectedRowIndex === index
+          ? null
+          : s.batch.selectedRowIndex !== null &&
+              s.batch.selectedRowIndex > index
+            ? s.batch.selectedRowIndex - 1
+            : s.batch.selectedRowIndex;
+      return {
+        batch: {
+          ...s.batch,
+          rows: rows.length ? rows : [newBatchRow()],
+          selectedRowIndex,
+        },
+      };
+    }),
+
+  loadLabel: (widgets, settings, batch) =>
+    set({ widgets, settings, batch: batch ?? defaultBatch() }),
 }));
