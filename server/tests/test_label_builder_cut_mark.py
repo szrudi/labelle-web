@@ -71,3 +71,12 @@ class TestPaintCutMarkInTrailingMargin:
         for x in range(bm.width):
             for y in range(bm.height):
                 assert bm.getpixel((x, y)) == 0
+
+    def test_margin_zero_paints_at_rightmost_column(self):
+        """margin_px=0 is valid in the UI; paint at the rightmost column
+        rather than silently doing nothing."""
+        bm = _make_blank_payload(width=200, height=64)
+        paint_cut_mark_in_trailing_margin(bm, margin_px=0)
+
+        ink_cols = {x for x in range(bm.width) for y in range(bm.height) if bm.getpixel((x, y))}
+        assert ink_cols == set(range(200 - CUT_MARK_WIDTH_PX, 200))

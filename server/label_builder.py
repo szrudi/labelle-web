@@ -61,7 +61,13 @@ def paint_cut_mark_in_trailing_margin(bitmap: Image.Image, margin_px: int) -> No
     Labelle payload convention: mode "1" with 1 = ink, 0 = no ink.
     """
     width, height = bitmap.size
-    x = width - margin_px
+    # margin_px == 0 is valid in the UI (SettingsBar allows it). Treat it
+    # as "paint at the rightmost column" so the cut mark still appears
+    # rather than silently doing nothing.
+    if margin_px <= 0:
+        x = width - CUT_MARK_WIDTH_PX
+    else:
+        x = width - margin_px
     # If the bitmap is narrower than the margin (degenerate input), there is
     # no trailing-margin zone to paint into — skip rather than landing the
     # dots in the content area.
