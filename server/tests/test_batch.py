@@ -387,6 +387,24 @@ class TestBatchCancel:
         )
         assert resp.status_code == 404
 
+    def test_cancel_missing_jobid_returns_400(self, client):
+        resp = client.post(
+            "/api/batch-print/cancel",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "jobId" in resp.json["message"]
+
+    def test_cancel_empty_jobid_returns_400(self, client):
+        resp = client.post(
+            "/api/batch-print/cancel",
+            data=json.dumps({"jobId": ""}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "jobId" in resp.json["message"]
+
     def test_cancel_sets_flag_on_running_job(self, client):
         from app import _batch_jobs
 

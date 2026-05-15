@@ -406,6 +406,9 @@ def api_batch_print():
     # Defence-in-depth cleanup: if the WSGI layer closes the response before
     # generate() ever iterates (e.g. client aborts pre-iteration), this fires
     # and releases the slot. Both paths are idempotent via pop(default=None).
+    # On normal completion, the generator's finally runs first and pops; the
+    # trailing call_on_close is a no-op. _release_slot closes over this job's
+    # id, so a new batch submitted between the two events isn't affected.
     response.call_on_close(_release_slot)
     return response
 
@@ -413,7 +416,10 @@ def api_batch_print():
 @app.route("/api/batch-print/cancel", methods=["POST"])
 def api_batch_cancel():
     data = request.get_json(silent=True) or {}
-    job_id = data.get("jobId", "")
+    job_id = data.get("jobId")
+
+    if not job_id or not isinstance(job_id, str):
+        return jsonify(status="error", message="jobId is required"), 400
 
     with _batch_lock:
         job = _batch_jobs.get(job_id)
