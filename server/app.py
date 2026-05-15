@@ -1,4 +1,3 @@
-import copy
 import json
 import os
 import re
@@ -222,21 +221,27 @@ def api_power_off():
     return jsonify(status="success", hub=hub, port=port_num, **status)
 
 
+_VAR_PATTERN = re.compile(r":(\w+):")
+
+
 def _substitute_widgets(widgets, values):
     """Replace :varname: placeholders in widget text/content fields.
 
-    Values are coerced to str so a stray non-string slipping past validation
-    doesn't crash re.sub's callback.
+    Each widget is shallow-copied because only the immutable string fields
+    `text`/`content` are reassigned — deepcopy was wasteful per row × per
+    copy at batch scale. Values are coerced to str so a stray non-string
+    slipping past validation doesn't crash re.sub's callback.
     """
-    result = copy.deepcopy(widgets)
-    pattern = re.compile(r":(\w+):")
-    for widget in result:
+    result = []
+    for widget in widgets:
+        new_widget = dict(widget)
         for field in ("text", "content"):
-            if field in widget and isinstance(widget[field], str):
-                widget[field] = pattern.sub(
+            if isinstance(new_widget.get(field), str):
+                new_widget[field] = _VAR_PATTERN.sub(
                     lambda m: str(values.get(m.group(1), m.group(0))),
-                    widget[field],
+                    new_widget[field],
                 )
+        result.append(new_widget)
     return result
 
 
