@@ -66,7 +66,8 @@ export async function exportLabel(
     data.batch = {
       copies: batch.copies,
       pauseTime: batch.pauseTime,
-      rows: batch.rows,
+      // Strip the internal `id` — it's a runtime React-key concern only.
+      rows: batch.rows.map((r) => r.values),
     };
   }
 
@@ -157,11 +158,15 @@ export async function importLabel(
       }
     }
 
+    const importedRows = (rows?.length ? rows : [{}]).map((values) => ({
+      id: uuidv4(),
+      values,
+    }));
     batch = {
       enabled: true,
       copies: copies ?? 1,
       pauseTime: pauseTime ?? 0,
-      rows: rows?.length ? rows : [{}],
+      rows: importedRows,
       selectedRowIndex: null,
     };
   }

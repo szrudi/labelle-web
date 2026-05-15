@@ -13,13 +13,19 @@ import type {
 import { DEFAULT_MARGIN_PX, DEFAULT_FONT_SCALE } from "../lib/constants";
 import { detectVariables } from "../lib/variables";
 
-const DEFAULT_BATCH: BatchState = {
-  enabled: false,
-  copies: 1,
-  pauseTime: 0,
-  rows: [{}],
-  selectedRowIndex: null,
-};
+function newBatchRow(values: Record<string, string> = {}) {
+  return { id: uuidv4(), values };
+}
+
+function defaultBatch(): BatchState {
+  return {
+    enabled: false,
+    copies: 1,
+    pauseTime: 0,
+    rows: [newBatchRow()],
+    selectedRowIndex: null,
+  };
+}
 
 interface LabelStore {
   widgets: LabelWidget[];
@@ -72,7 +78,7 @@ export const useLabelStore = create<LabelStore>((set) => ({
 
   availablePrinters: [],
 
-  batch: { ...DEFAULT_BATCH },
+  batch: defaultBatch(),
 
   addTextWidget: () => {
     const id = uuidv4();
@@ -189,20 +195,20 @@ export const useLabelStore = create<LabelStore>((set) => ({
           return w;
         });
 
-        // Migrate row keys. If `newName` already existed in the row
-        // (e.g. user renamed `:name:` -> `:full_name:` while another
-        // widget already used `:full_name:`), the rename takes
+        // Migrate row values keys. If `newName` already existed in the
+        // row (e.g. user renamed `:name:` -> `:full_name:` while
+        // another widget already used `:full_name:`), the rename takes
         // precedence and the prior value is overwritten — the user's
         // most recent edit wins.
-        const rows: Record<string, string>[] = s.batch.rows.map((row) => {
-          if (!(oldName in row)) return row;
-          const value = row[oldName] ?? "";
-          const next: Record<string, string> = {};
-          for (const [k, v] of Object.entries(row)) {
-            if (k !== oldName) next[k] = v;
+        const rows = s.batch.rows.map((row) => {
+          if (!(oldName in row.values)) return row;
+          const value = row.values[oldName] ?? "";
+          const nextValues: Record<string, string> = {};
+          for (const [k, v] of Object.entries(row.values)) {
+            if (k !== oldName) nextValues[k] = v;
           }
-          next[newName] = value;
-          return next;
+          nextValues[newName] = value;
+          return { ...row, values: nextValues };
         });
 
         return { widgets, batch: { ...s.batch, rows } };
@@ -223,14 +229,16 @@ export const useLabelStore = create<LabelStore>((set) => ({
   setBatchRow: (rowIndex, varName, value) =>
     set((s) => {
       const rows = s.batch.rows.map((row, i) =>
-        i === rowIndex ? { ...row, [varName]: value } : row,
+        i === rowIndex
+          ? { ...row, values: { ...row.values, [varName]: value } }
+          : row,
       );
       return { batch: { ...s.batch, rows } };
     }),
 
   addBatchRow: () =>
     set((s) => ({
-      batch: { ...s.batch, rows: [...s.batch.rows, {}] },
+      batch: { ...s.batch, rows: [...s.batch.rows, newBatchRow()] },
     })),
 
   removeBatchRow: (index) =>
@@ -243,9 +251,15 @@ export const useLabelStore = create<LabelStore>((set) => ({
               s.batch.selectedRowIndex > index
             ? s.batch.selectedRowIndex - 1
             : s.batch.selectedRowIndex;
-      return { batch: { ...s.batch, rows: rows.length ? rows : [{}], selectedRowIndex } };
+      return {
+        batch: {
+          ...s.batch,
+          rows: rows.length ? rows : [newBatchRow()],
+          selectedRowIndex,
+        },
+      };
     }),
 
   loadLabel: (widgets, settings, batch) =>
-    set({ widgets, settings, batch: batch ?? { ...DEFAULT_BATCH } }),
+    set({ widgets, settings, batch: batch ?? defaultBatch() }),
 }));

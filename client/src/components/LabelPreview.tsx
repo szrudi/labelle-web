@@ -14,7 +14,7 @@ export function LabelPreview() {
   const previewWidgets = useMemo(() => {
     if (batch.enabled && batch.selectedRowIndex !== null) {
       const row = batch.rows[batch.selectedRowIndex];
-      if (row) return substituteWidgets(widgets, row);
+      if (row) return substituteWidgets(widgets, row.values);
     }
     return widgets;
   }, [widgets, batch.enabled, batch.selectedRowIndex, batch.rows]);

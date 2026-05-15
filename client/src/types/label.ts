@@ -75,11 +75,18 @@ export interface PowerStatus {
   connected: boolean;
 }
 
+export interface BatchRow {
+  // Stable id so React keys survive row reordering/removal. Internal only —
+  // stripped on export, regenerated on import.
+  id: string;
+  values: Record<string, string>;
+}
+
 export interface BatchState {
   enabled: boolean;
   copies: number;
   pauseTime: number;
-  rows: Record<string, string>[];
+  rows: BatchRow[];
   selectedRowIndex: number | null;
 }
 

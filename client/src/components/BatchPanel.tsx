@@ -168,7 +168,7 @@ export function BatchPanel() {
                     const isPreviewed = batch.selectedRowIndex === rowIdx;
                     return (
                       <tr
-                        key={rowIdx}
+                        key={row.id}
                         className={isPreviewed ? "bg-blue-50" : ""}
                       >
                         <td className="border border-gray-200 px-2 py-1 text-gray-400">
@@ -182,7 +182,7 @@ export function BatchPanel() {
                             <input
                               type="text"
                               className="w-full bg-transparent outline-none px-1 py-0.5"
-                              value={row[v] ?? ""}
+                              value={row.values[v] ?? ""}
                               onChange={(e) =>
                                 setBatchRow(rowIdx, v, e.target.value)
                               }

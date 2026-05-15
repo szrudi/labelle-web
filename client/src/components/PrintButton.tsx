@@ -39,7 +39,7 @@ export function PrintButton() {
         await batchPrint(
           widgets,
           settings,
-          batch.rows,
+          batch.rows.map((r) => r.values),
           batch.copies,
           batch.pauseTime,
           (event: BatchEvent) => {
