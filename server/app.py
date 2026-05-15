@@ -214,7 +214,7 @@ def api_power_off():
 def _substitute_widgets(widgets, values):
     """Replace :varname: placeholders in widget text/content fields."""
     result = copy.deepcopy(widgets)
-    pattern = re.compile(r":([a-zA-Z_]\w*):")
+    pattern = re.compile(r":(\w+):")
     for widget in result:
         for field in ("text", "content"):
             if field in widget and isinstance(widget[field], str):
