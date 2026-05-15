@@ -101,7 +101,10 @@ export function PrintButton() {
         <button
           className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white py-3 rounded-lg font-semibold transition-colors"
           onClick={handlePrint}
-          disabled={status.type === "loading"}
+          disabled={
+            status.type === "loading" ||
+            (batch.enabled && totalLabels === 0)
+          }
         >
           {status.type === "loading"
             ? status.message ?? "Printing..."
