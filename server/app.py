@@ -55,6 +55,13 @@ UPLOAD_DIR = tempfile.mkdtemp(prefix="labelle-uploads-")
 _batch_jobs: dict[str, dict] = {}
 _batch_lock = threading.Lock()
 
+# Caps for batch requests. Untrusted JSON otherwise; without these a client
+# could tie up the printer indefinitely and lock out every other batch run.
+MAX_BATCH_COPIES = 999
+MAX_BATCH_ROWS = 1000
+MAX_BATCH_TOTAL = 10000
+MAX_BATCH_PAUSE_SECONDS = 60.0
+
 
 @app.before_request
 def _track_activity_and_wake_printer():
@@ -231,13 +238,29 @@ def api_batch_print():
     settings = data.get("settings", {})
     printer_id = settings.get("printerId")
     rows = data.get("rows", [])
-    copies = max(1, int(data.get("copies", 1)))
-    pause_time = max(0.0, float(data.get("pauseTime", 0)))
+
+    try:
+        copies = int(data.get("copies", 1))
+        pause_time = float(data.get("pauseTime", 0))
+    except (TypeError, ValueError):
+        return jsonify(status="error", message="copies and pauseTime must be numeric"), 400
+
+    copies = max(1, min(MAX_BATCH_COPIES, copies))
+    pause_time = max(0.0, min(MAX_BATCH_PAUSE_SECONDS, pause_time))
 
     if not widgets or not isinstance(widgets, list) or len(widgets) == 0:
         return jsonify(status="error", message="No widgets provided"), 400
     if not rows or not isinstance(rows, list):
         return jsonify(status="error", message="No rows provided"), 400
+    if len(rows) > MAX_BATCH_ROWS:
+        return jsonify(status="error", message=f"Too many rows (max {MAX_BATCH_ROWS})"), 400
+
+    total = len(rows) * copies
+    if total > MAX_BATCH_TOTAL:
+        return jsonify(
+            status="error",
+            message=f"Batch too large: {total} labels (max {MAX_BATCH_TOTAL})",
+        ), 400
 
     # Only one batch job at a time
     with _batch_lock:
@@ -253,8 +276,6 @@ def api_batch_print():
     for row in rows:
         for _ in range(copies):
             print_list.append(row)
-
-    total = len(print_list)
 
     def generate():
         try:
@@ -283,23 +304,32 @@ def api_batch_print():
 
                 yield f"data: {json.dumps({'event': 'printed', 'index': idx, 'total': total})}\n\n"
 
-                # Pause between prints (except after last)
+                # Pause between prints (except after last). Use monotonic
+                # deadline so the actual elapsed time matches pause_time
+                # regardless of clock skew or fractional sleep durations.
                 if pause_time > 0 and idx < total - 1:
-                    elapsed = 0.0
-                    while elapsed < pause_time:
+                    deadline = time.monotonic() + pause_time
+                    while True:
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            break
                         if _batch_jobs.get(job_id, {}).get("cancelled"):
                             yield f"data: {json.dumps({'event': 'cancelled', 'printed': idx + 1})}\n\n"
                             return
-                        time.sleep(min(0.1, pause_time - elapsed))
-                        elapsed += 0.1
+                        time.sleep(min(0.1, remaining))
 
             yield f"data: {json.dumps({'event': 'done', 'total': total})}\n\n"
         finally:
+            # Drop the entry entirely so _batch_jobs doesn't grow unbounded.
             with _batch_lock:
-                if job_id in _batch_jobs:
-                    _batch_jobs[job_id]["done"] = True
+                _batch_jobs.pop(job_id, None)
 
-    return Response(generate(), mimetype="text/event-stream")
+    response = Response(generate(), mimetype="text/event-stream")
+    # Disable proxy/server buffering so progress events stream to the client
+    # in real time instead of arriving in one chunk at the end.
+    response.headers["Cache-Control"] = "no-cache"
+    response.headers["X-Accel-Buffering"] = "no"
+    return response
 
 
 @app.route("/api/batch-print/cancel", methods=["POST"])
