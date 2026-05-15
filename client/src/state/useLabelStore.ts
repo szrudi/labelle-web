@@ -11,6 +11,7 @@ import type {
   PrinterInfo,
 } from "../types/label";
 import { DEFAULT_MARGIN_PX, DEFAULT_FONT_SCALE } from "../lib/constants";
+import { detectVariables } from "../lib/variables";
 
 const DEFAULT_BATCH: BatchState = {
   enabled: false,
@@ -141,11 +142,32 @@ export const useLabelStore = create<LabelStore>((set) => ({
     }),
 
   updateWidget: (id, patch) =>
-    set((s) => ({
-      widgets: s.widgets.map((w) =>
+    set((s) => {
+      const widgets = s.widgets.map((w) =>
         w.id === id ? ({ ...w, ...patch } as LabelWidget) : w,
-      ),
-    })),
+      );
+
+      // Variable rename detection: if exactly one variable name disappeared
+      // and exactly one new one appeared, treat it as a rename and carry the
+      // batch row values across. Anything more ambiguous (added without
+      // removing, removed without adding, multiple of each) leaves rows alone.
+      const before = detectVariables(s.widgets);
+      const after = detectVariables(widgets);
+      const removed = before.filter((v) => !after.includes(v));
+      const added = after.filter((v) => !before.includes(v));
+      if (removed.length === 1 && added.length === 1) {
+        const oldName = removed[0]!;
+        const newName = added[0]!;
+        const rows = s.batch.rows.map((row) => {
+          if (!(oldName in row)) return row;
+          const { [oldName]: value, ...rest } = row;
+          return { ...rest, [newName]: value };
+        });
+        return { widgets, batch: { ...s.batch, rows } };
+      }
+
+      return { widgets };
+    }),
 
   updateSettings: (patch) =>
     set((s) => ({ settings: { ...s.settings, ...patch } })),

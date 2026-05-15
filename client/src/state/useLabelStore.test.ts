@@ -154,3 +154,96 @@ describe("Load", () => {
     expect(useLabelStore.getState().settings).toEqual(settings);
   });
 });
+
+describe("Variable rename in batch rows", () => {
+  function seedTextWidgetWith(text: string): string {
+    useLabelStore.setState({
+      widgets: [
+        {
+          id: "w1",
+          type: "text",
+          text,
+          fontStyle: "regular",
+          fontScale: DEFAULT_FONT_SCALE,
+          frameWidthPx: 0,
+          align: "left",
+        },
+      ],
+    });
+    return "w1";
+  }
+
+  it("carries batch row values from old name to new on rename", () => {
+    const id = seedTextWidgetWith("Hi :name:");
+    useLabelStore.setState({
+      batch: {
+        enabled: true,
+        copies: 1,
+        pauseTime: 0,
+        rows: [{ name: "Alice" }, { name: "Bob" }],
+        selectedRowIndex: null,
+      },
+    });
+
+    useLabelStore.getState().updateWidget(id, { text: "Hi :full_name:" });
+
+    const rows = useLabelStore.getState().batch.rows;
+    expect(rows[0]).toEqual({ full_name: "Alice" });
+    expect(rows[1]).toEqual({ full_name: "Bob" });
+  });
+
+  it("carries values through incremental typing edits", () => {
+    const id = seedTextWidgetWith(":name:");
+    useLabelStore.setState({
+      batch: {
+        enabled: true,
+        copies: 1,
+        pauseTime: 0,
+        rows: [{ name: "Alice" }],
+        selectedRowIndex: null,
+      },
+    });
+
+    // Simulate typing "name" -> "names"
+    useLabelStore.getState().updateWidget(id, { text: ":names:" });
+    expect(useLabelStore.getState().batch.rows[0]).toEqual({ names: "Alice" });
+  });
+
+  it("does not touch rows when a variable is purely added", () => {
+    const id = seedTextWidgetWith(":name:");
+    useLabelStore.setState({
+      batch: {
+        enabled: true,
+        copies: 1,
+        pauseTime: 0,
+        rows: [{ name: "Alice" }],
+        selectedRowIndex: null,
+      },
+    });
+
+    useLabelStore.getState().updateWidget(id, { text: ":name: :age:" });
+
+    expect(useLabelStore.getState().batch.rows[0]).toEqual({ name: "Alice" });
+  });
+
+  it("does not touch rows when a variable is purely removed", () => {
+    const id = seedTextWidgetWith(":name: :age:");
+    useLabelStore.setState({
+      batch: {
+        enabled: true,
+        copies: 1,
+        pauseTime: 0,
+        rows: [{ name: "Alice", age: "30" }],
+        selectedRowIndex: null,
+      },
+    });
+
+    useLabelStore.getState().updateWidget(id, { text: ":name:" });
+
+    // age value orphans but isn't reassigned to something else
+    expect(useLabelStore.getState().batch.rows[0]).toEqual({
+      name: "Alice",
+      age: "30",
+    });
+  });
+});
