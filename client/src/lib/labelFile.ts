@@ -1,11 +1,15 @@
 import { v4 as uuidv4 } from "uuid";
 import type { LabelWidget, LabelSettings, BatchState } from "../types/label";
 import { uploadImage } from "./api";
+import { MAX_BATCH_COPIES, MAX_BATCH_PAUSE_SECONDS } from "./constants";
 
+// All fields optional: importLabel tolerates missing keys with safe
+// defaults, and `??` fallbacks at the use site only fire on
+// undefined — required types would lie about the runtime contract.
 interface LabelFileBatch {
-  copies: number;
-  pauseTime: number;
-  rows: Record<string, string>[];
+  copies?: number;
+  pauseTime?: number;
+  rows?: Record<string, string>[];
 }
 
 interface LabelFile {
@@ -119,14 +123,23 @@ export async function importLabel(
       throw new Error("Invalid label file: batch must be an object");
     }
     const { copies, pauseTime, rows } = data.batch;
-    if (copies !== undefined && (typeof copies !== "number" || copies < 1)) {
-      throw new Error("Invalid label file: batch.copies must be a number >= 1");
+    if (
+      copies !== undefined &&
+      (typeof copies !== "number" || copies < 1 || copies > MAX_BATCH_COPIES)
+    ) {
+      throw new Error(
+        `Invalid label file: batch.copies must be a number between 1 and ${MAX_BATCH_COPIES}`,
+      );
     }
     if (
       pauseTime !== undefined &&
-      (typeof pauseTime !== "number" || pauseTime < 0)
+      (typeof pauseTime !== "number" ||
+        pauseTime < 0 ||
+        pauseTime > MAX_BATCH_PAUSE_SECONDS)
     ) {
-      throw new Error("Invalid label file: batch.pauseTime must be a number >= 0");
+      throw new Error(
+        `Invalid label file: batch.pauseTime must be a number between 0 and ${MAX_BATCH_PAUSE_SECONDS}`,
+      );
     }
     if (rows !== undefined && !Array.isArray(rows)) {
       throw new Error("Invalid label file: batch.rows must be an array");
