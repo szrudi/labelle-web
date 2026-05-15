@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import re
 import subprocess
@@ -262,14 +263,28 @@ def api_batch_print():
     if len(rows) > MAX_BATCH_ROWS:
         return jsonify(status="error", message=f"Too many rows (max {MAX_BATCH_ROWS})"), 400
 
+    raw_copies = data.get("copies", 1)
+    # Reject bool (True/False are ints in Python) and non-integer numerics
+    # like 1.9 — silent truncation is surprising for API consumers.
+    if isinstance(raw_copies, bool):
+        return jsonify(status="error", message="copies must be an integer"), 400
     try:
-        copies = int(data.get("copies", 1))
+        copies_float = float(raw_copies)
     except (TypeError, ValueError):
         return jsonify(status="error", message="copies must be numeric"), 400
+    if not math.isfinite(copies_float) or not copies_float.is_integer():
+        return jsonify(status="error", message="copies must be a finite integer"), 400
+    copies = int(copies_float)
+
+    raw_pause = data.get("pauseTime", 0)
+    if isinstance(raw_pause, bool):
+        return jsonify(status="error", message="pauseTime must be a number"), 400
     try:
-        pause_time = float(data.get("pauseTime", 0))
+        pause_time = float(raw_pause)
     except (TypeError, ValueError):
         return jsonify(status="error", message="pauseTime must be numeric"), 400
+    if not math.isfinite(pause_time):
+        return jsonify(status="error", message="pauseTime must be a finite number"), 400
 
     if copies < 1 or copies > MAX_BATCH_COPIES:
         return jsonify(
@@ -285,10 +300,11 @@ def api_batch_print():
     # Validate row shape up front so failures surface as clean 400s rather
     # than blowing up the SSE stream mid-print. Coerce values to strings so
     # `{name: 42}` becomes `{name: "42"}` instead of crashing re.sub later.
+    # Row indices in the error message are 1-based to match the BatchPanel UI.
     normalised_rows = []
     for i, row in enumerate(rows):
         if not isinstance(row, dict):
-            return jsonify(status="error", message=f"Row {i} must be an object"), 400
+            return jsonify(status="error", message=f"Row {i + 1} must be an object"), 400
         normalised_rows.append({str(k): str(v) for k, v in row.items()})
     rows = normalised_rows
 

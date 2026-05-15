@@ -115,6 +115,55 @@ class TestBatchPrintValidation:
         assert resp.status_code == 400
         assert "pauseTime" in resp.json["message"]
 
+    def test_non_integer_copies_returns_400(self, client):
+        resp = client.post(
+            "/api/batch-print",
+            data=json.dumps({
+                "widgets": [_widget()],
+                "settings": _settings(),
+                "rows": [{"name": "A"}],
+                "copies": 1.9,
+            }),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "integer" in resp.json["message"]
+
+    def test_bool_copies_returns_400(self, client):
+        resp = client.post(
+            "/api/batch-print",
+            data=json.dumps({
+                "widgets": [_widget()],
+                "settings": _settings(),
+                "rows": [{"name": "A"}],
+                "copies": True,
+            }),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "integer" in resp.json["message"]
+
+    def test_nan_pause_returns_400(self, client):
+        # JSON doesn't allow NaN by default, but Python's json module is
+        # lenient — and `float("nan")` slipped past the comparison checks
+        # before, then crashed time.sleep() mid-batch.
+        resp = client.post(
+            "/api/batch-print",
+            data='{"widgets":[{"type":"text","text":"x","id":"1"}],"settings":{},"rows":[{"name":"A"}],"pauseTime":NaN}',
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "finite" in resp.json["message"]
+
+    def test_inf_pause_returns_400(self, client):
+        resp = client.post(
+            "/api/batch-print",
+            data='{"widgets":[{"type":"text","text":"x","id":"1"}],"settings":{},"rows":[{"name":"A"}],"pauseTime":Infinity}',
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "finite" in resp.json["message"]
+
     def test_too_many_rows_returns_400(self, client):
         from app import MAX_BATCH_ROWS
 
@@ -158,7 +207,8 @@ class TestBatchPrintValidation:
             content_type="application/json",
         )
         assert resp.status_code == 400
-        assert "Row 1" in resp.json["message"]
+        # 1-indexed to match the UI
+        assert "Row 2" in resp.json["message"]
 
     def test_pause_budget_too_long_returns_400(self, client):
         # 1000 rows × 1 copy × 60s pause = 60000s ≈ 16.7h, over the 8h cap.
