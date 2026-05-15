@@ -246,4 +246,83 @@ describe("Variable rename in batch rows", () => {
       age: "30",
     });
   });
+
+  it("propagates rename to other widgets that reference the same variable", () => {
+    useLabelStore.setState({
+      widgets: [
+        {
+          id: "w1",
+          type: "text",
+          text: "Hello :name:",
+          fontStyle: "regular",
+          fontScale: DEFAULT_FONT_SCALE,
+          frameWidthPx: 0,
+          align: "left",
+        },
+        { id: "w2", type: "qr", content: "user/:name:" },
+        { id: "w3", type: "barcode", content: ":name:", barcodeType: "code128", showText: false },
+      ],
+      batch: {
+        enabled: true,
+        copies: 1,
+        pauseTime: 0,
+        rows: [{ name: "Alice" }],
+        selectedRowIndex: null,
+      },
+    });
+
+    useLabelStore.getState().updateWidget("w1", { text: "Hello :full_name:" });
+
+    const widgets = useLabelStore.getState().widgets;
+    expect((widgets[0] as { text: string }).text).toBe("Hello :full_name:");
+    expect((widgets[1] as { content: string }).content).toBe("user/:full_name:");
+    expect((widgets[2] as { content: string }).content).toBe(":full_name:");
+    expect(useLabelStore.getState().batch.rows[0]).toEqual({ full_name: "Alice" });
+  });
+
+  it("does not propagate when a different widget gets an unrelated edit", () => {
+    // Two unrelated edits in different widgets — without per-widget scoping
+    // the heuristic could see {removed:[a], added:[b]} from cross-widget
+    // bookkeeping and incorrectly carry values. Per-widget scoping prevents
+    // this: removing var from B doesn't migrate A's row data.
+    useLabelStore.setState({
+      widgets: [
+        {
+          id: "w1",
+          type: "text",
+          text: ":name:",
+          fontStyle: "regular",
+          fontScale: DEFAULT_FONT_SCALE,
+          frameWidthPx: 0,
+          align: "left",
+        },
+        {
+          id: "w2",
+          type: "text",
+          text: ":age:",
+          fontStyle: "regular",
+          fontScale: DEFAULT_FONT_SCALE,
+          frameWidthPx: 0,
+          align: "left",
+        },
+      ],
+      batch: {
+        enabled: true,
+        copies: 1,
+        pauseTime: 0,
+        rows: [{ name: "Alice", age: "30" }],
+        selectedRowIndex: null,
+      },
+    });
+
+    // Remove :age: from widget 2 only (a pure removal).
+    useLabelStore.getState().updateWidget("w2", { text: "" });
+
+    // Row data should be unchanged — age value orphans but name is not
+    // migrated into age (or vice versa).
+    expect(useLabelStore.getState().batch.rows[0]).toEqual({
+      name: "Alice",
+      age: "30",
+    });
+  });
 });

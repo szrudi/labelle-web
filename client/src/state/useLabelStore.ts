@@ -143,21 +143,40 @@ export const useLabelStore = create<LabelStore>((set) => ({
 
   updateWidget: (id, patch) =>
     set((s) => {
-      const widgets = s.widgets.map((w) =>
-        w.id === id ? ({ ...w, ...patch } as LabelWidget) : w,
-      );
+      const oldWidget = s.widgets.find((w) => w.id === id);
+      if (!oldWidget) return s;
+      const newWidget = { ...oldWidget, ...patch } as LabelWidget;
 
-      // Variable rename detection: if exactly one variable name disappeared
-      // and exactly one new one appeared, treat it as a rename and carry the
-      // batch row values across. Anything more ambiguous (added without
-      // removing, removed without adding, multiple of each) leaves rows alone.
-      const before = detectVariables(s.widgets);
-      const after = detectVariables(widgets);
+      // Variable rename detection: compare variables in JUST the changed
+      // widget. If exactly one disappeared and one appeared, treat it as a
+      // rename — propagate to other widgets and migrate the batch row key.
+      // Scoping to one widget avoids the cross-widget false-positive where
+      // unrelated edits in two widgets could each contribute a single add
+      // and remove.
+      const before = detectVariables([oldWidget]);
+      const after = detectVariables([newWidget]);
       const removed = before.filter((v) => !after.includes(v));
       const added = after.filter((v) => !before.includes(v));
+
       if (removed.length === 1 && added.length === 1) {
         const oldName = removed[0]!;
         const newName = added[0]!;
+        // Variable names match \w+ — no regex escaping needed.
+        const placeholderRe = new RegExp(`:${oldName}:`, "g");
+        const newPlaceholder = `:${newName}:`;
+
+        const widgets = s.widgets.map((w) => {
+          if (w.id === id) return newWidget;
+          if (w.type === "text")
+            return { ...w, text: w.text.replace(placeholderRe, newPlaceholder) };
+          if (w.type === "qr" || w.type === "barcode")
+            return {
+              ...w,
+              content: w.content.replace(placeholderRe, newPlaceholder),
+            };
+          return w;
+        });
+
         const rows: Record<string, string>[] = s.batch.rows.map((row) => {
           if (!(oldName in row)) return row;
           const value = row[oldName] ?? "";
@@ -168,9 +187,11 @@ export const useLabelStore = create<LabelStore>((set) => ({
           next[newName] = value;
           return next;
         });
+
         return { widgets, batch: { ...s.batch, rows } };
       }
 
+      const widgets = s.widgets.map((w) => (w.id === id ? newWidget : w));
       return { widgets };
     }),
 
