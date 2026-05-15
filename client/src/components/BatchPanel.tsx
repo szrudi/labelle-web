@@ -33,10 +33,15 @@ export function BatchPanel() {
 
   const variables = useMemo(() => detectVariables(widgets), [widgets]);
 
-  // <details> open state is decoupled from batch.enabled. Opening the panel
-  // to view its contents should not flip the Print button to batch mode.
-  // Default-open when batch is already enabled (e.g., loaded from file).
+  // <details> open state is decoupled from batch.enabled — opening the
+  // panel to view its contents should not flip the Print button to batch
+  // mode. We do auto-open when batch.enabled goes true (initial mount, or
+  // a label file load that turns batch on), but the user can collapse it
+  // afterwards without disabling batch mode.
   const [open, setOpen] = useState(batch.enabled);
+  useEffect(() => {
+    if (batch.enabled) setOpen(true);
+  }, [batch.enabled]);
 
   // Local string state for number inputs so the user can clear and retype
   // without the value snapping back to a clamped minimum mid-edit.
