@@ -320,6 +320,11 @@ def api_batch_print():
             yield f"data: {json.dumps({'event': 'started', 'jobId': job_id, 'total': total})}\n\n"
 
             for idx, row_values in enumerate(print_list):
+                # Lockless read of the cancellation flag is intentional:
+                # dict.get and single-field reads are atomic under CPython's
+                # GIL, and this runs on every iteration. Writes (in the
+                # cancel endpoint) take _batch_lock to serialize against
+                # other writers, but readers don't need it.
                 job = _batch_jobs.get(job_id, {})
                 if job.get("cancelled"):
                     yield f"data: {json.dumps({'event': 'cancelled', 'printed': idx})}\n\n"

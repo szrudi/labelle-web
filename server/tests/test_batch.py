@@ -322,7 +322,6 @@ class TestBatchPrintConcurrency:
         )
         assert resp.status_code == 409
         assert "already running" in resp.json["message"]
-        _batch_jobs.clear()
 
 
 class TestBatchCancel:
@@ -345,7 +344,6 @@ class TestBatchCancel:
         )
         assert resp.status_code == 200
         assert _batch_jobs["live"]["cancelled"] is True
-        _batch_jobs.clear()
 
     @patch("app.print_label")
     def test_cancellation_stops_batch_between_prints(self, mock_print, client):
