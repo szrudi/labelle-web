@@ -81,6 +81,11 @@ export async function importLabel(
   if (!data.version || !data.widgets || !data.settings) {
     throw new Error("Invalid label file");
   }
+  if (data.version > 2) {
+    throw new Error(
+      `Unsupported label file version ${data.version}. Update Labelle Web to load this file.`,
+    );
+  }
 
   const widgets: LabelWidget[] = [];
 

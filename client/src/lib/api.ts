@@ -100,8 +100,14 @@ export async function batchPrint(
   });
 
   if (!res.ok) {
-    const err = (await res.json()) as PrintResponse;
-    throw new Error(err.message);
+    let message = res.statusText || `HTTP ${res.status}`;
+    try {
+      const err = (await res.json()) as PrintResponse;
+      if (err.message) message = err.message;
+    } catch {
+      // Non-JSON body (e.g. nginx 502 HTML); fall back to statusText.
+    }
+    throw new Error(message);
   }
 
   const reader = res.body?.getReader();
@@ -120,8 +126,12 @@ export async function batchPrint(
 
     for (const line of lines) {
       if (line.startsWith("data: ")) {
-        const event = JSON.parse(line.slice(6)) as BatchEvent;
-        onProgress(event);
+        try {
+          const event = JSON.parse(line.slice(6)) as BatchEvent;
+          onProgress(event);
+        } catch (err) {
+          console.warn("Malformed SSE data line:", line, err);
+        }
       }
     }
   }

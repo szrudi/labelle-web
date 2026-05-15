@@ -89,7 +89,9 @@ export function PrintButton() {
 
   const handleCancel = () => {
     if (jobIdRef.current) {
-      cancelBatchPrint(jobIdRef.current);
+      cancelBatchPrint(jobIdRef.current).catch((err) => {
+        console.warn("Cancel batch failed:", err);
+      });
     }
   };
 
