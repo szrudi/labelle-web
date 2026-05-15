@@ -89,13 +89,14 @@ export async function batchPrint(
   rows: Record<string, string>[],
   copies: number,
   pauseTime: number,
+  jobId: string,
   onProgress: (event: BatchEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
   const res = await fetch("/api/batch-print", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ widgets, settings, rows, copies, pauseTime }),
+    body: JSON.stringify({ widgets, settings, rows, copies, pauseTime, jobId }),
     signal,
   });
 

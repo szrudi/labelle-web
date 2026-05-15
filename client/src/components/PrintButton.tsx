@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { v4 as uuidv4 } from "uuid";
 import { useLabelStore } from "../state/useLabelStore";
 import { printLabel, batchPrint, cancelBatchPrint } from "../lib/api";
 import type { BatchEvent } from "../lib/api";
@@ -45,16 +46,22 @@ export function PrintButton() {
       if (batch.enabled) {
         const controller = new AbortController();
         abortRef.current = controller;
+        // Generate the jobId client-side so the unmount cleanup can cancel
+        // the server-side batch immediately, even if it fires before the
+        // `started` SSE event arrives (which is the only place the server
+        // would otherwise echo back a server-chosen id).
+        const jobId = uuidv4();
+        jobIdRef.current = jobId;
         await batchPrint(
           widgets,
           settings,
           batch.rows.map((r) => r.values),
           batch.copies,
           batch.pauseTime,
+          jobId,
           (event: BatchEvent) => {
             switch (event.event) {
               case "started":
-                jobIdRef.current = event.jobId ?? null;
                 setStatus({
                   type: "loading",
                   message: `Starting batch of ${event.total}...`,

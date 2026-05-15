@@ -345,7 +345,19 @@ def api_batch_print():
     # registered on the Response via call_on_close so the slot is released
     # even if the generator never iterates (e.g. client aborts before
     # reading the body).
-    job_id = uuid.uuid4().hex
+    #
+    # The client may provide its own jobId so it can request cancellation
+    # without waiting for the `started` SSE event (closes an unmount-race
+    # window). Server falls back to its own uuid if the client didn't
+    # supply one. Accepted format: 8-64 chars of [a-zA-Z0-9_-].
+    raw_job_id = data.get("jobId")
+    if raw_job_id is not None:
+        if not isinstance(raw_job_id, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{8,64}", raw_job_id):
+            return jsonify(status="error", message="jobId must be 8-64 chars of [a-zA-Z0-9_-]"), 400
+        job_id = raw_job_id
+    else:
+        job_id = uuid.uuid4().hex
+
     with _batch_lock:
         if _batch_jobs:
             return jsonify(status="error", message="Another batch job is already running"), 409
