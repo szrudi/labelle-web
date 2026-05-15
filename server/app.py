@@ -15,6 +15,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 from flask import Flask, Response, jsonify, request, send_from_directory
 from flask_cors import CORS
+from labelle.lib.constants import DEFAULT_MARGIN_PX
 from werkzeug.utils import secure_filename
 
 import power_save
@@ -102,9 +103,9 @@ def _print_label_with_cut_mark(
     """
     bitmap = render_payload(widgets, settings, upload_dir=UPLOAD_DIR)
     paint_cut_mark_in_trailing_margin(
-        bitmap, margin_px=settings.get("marginPx", 56)
+        bitmap, margin_px=settings.get("marginPx", DEFAULT_MARGIN_PX)
     )
-    print_bitmap(bitmap, settings, printer_id=printer_id)
+    print_bitmap(bitmap, settings, printer_id=printer_id, widgets=widgets)
 
 
 @app.route("/api/print", methods=["POST"])
