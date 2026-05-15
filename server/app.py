@@ -36,7 +36,10 @@ _POWER_SAVE_IGNORED_PREFIXES = ("/api/power/",)
 
 # Routes that need the printer to be powered on. The before_request
 # hook will block on a power-on for these if the saver has turned the
-# port off.
+# port off. Membership check uses exact equality (not prefix), so
+# /api/batch-print triggers wake-up but /api/batch-print/cancel
+# deliberately does not — cancelling shouldn't be gated on the
+# printer being awake.
 _PRINTER_USING_PATHS = (
     "/api/print",
     "/api/preview",
@@ -298,14 +301,24 @@ def api_batch_print():
         ), 400
 
     # Validate row shape up front so failures surface as clean 400s rather
-    # than blowing up the SSE stream mid-print. Coerce values to strings so
-    # `{name: 42}` becomes `{name: "42"}` instead of crashing re.sub later.
+    # than blowing up the SSE stream mid-print. Numeric values are coerced
+    # to strings so `{name: 42}` becomes `{name: "42"}`; other non-string
+    # types (None, bool, list, dict) are rejected because str()-ing them
+    # would print surprising literals on the label like "None" or "True".
     # Row indices in the error message are 1-based to match the BatchPanel UI.
     normalised_rows = []
     for i, row in enumerate(rows):
         if not isinstance(row, dict):
             return jsonify(status="error", message=f"Row {i + 1} must be an object"), 400
-        normalised_rows.append({str(k): str(v) for k, v in row.items()})
+        clean: dict[str, str] = {}
+        for k, v in row.items():
+            if isinstance(v, bool) or not isinstance(v, (str, int, float)):
+                return jsonify(
+                    status="error",
+                    message=f"Row {i + 1} field {k!r} must be a string or number",
+                ), 400
+            clean[str(k)] = str(v)
+        normalised_rows.append(clean)
     rows = normalised_rows
 
     total = len(rows) * copies

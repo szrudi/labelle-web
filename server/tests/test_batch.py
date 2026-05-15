@@ -228,9 +228,8 @@ class TestBatchPrintValidation:
         assert "pause budget" in resp.json["message"]
 
     @patch("app.print_label")
-    def test_non_string_value_is_coerced(self, mock_print, client):
-        # Non-string values shouldn't crash the SSE stream — they get coerced
-        # to strings during row validation.
+    def test_numeric_value_is_coerced_to_string(self, mock_print, client):
+        # Numbers are stringified for ergonomics — sending {qty: 42} works.
         resp = client.post(
             "/api/batch-print",
             data=json.dumps({
@@ -244,6 +243,47 @@ class TestBatchPrintValidation:
         _read_sse(resp)
         call_widgets = mock_print.call_args_list[0][0][0]
         assert call_widgets[0]["text"] == "Hello 42"
+
+    def test_none_value_is_rejected(self, client):
+        # str(None) = "None" would print as a literal on the label, not what
+        # anyone wants — reject explicitly.
+        resp = client.post(
+            "/api/batch-print",
+            data=json.dumps({
+                "widgets": [_widget()],
+                "settings": _settings(),
+                "rows": [{"name": None}],
+            }),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "string or number" in resp.json["message"]
+
+    def test_bool_value_is_rejected(self, client):
+        resp = client.post(
+            "/api/batch-print",
+            data=json.dumps({
+                "widgets": [_widget()],
+                "settings": _settings(),
+                "rows": [{"name": True}],
+            }),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "string or number" in resp.json["message"]
+
+    def test_list_value_is_rejected(self, client):
+        resp = client.post(
+            "/api/batch-print",
+            data=json.dumps({
+                "widgets": [_widget()],
+                "settings": _settings(),
+                "rows": [{"name": [1, 2]}],
+            }),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "string or number" in resp.json["message"]
 
 
 class TestBatchPrintExecution:
