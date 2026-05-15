@@ -264,9 +264,12 @@ def api_batch_print():
 
     try:
         copies = int(data.get("copies", 1))
+    except (TypeError, ValueError):
+        return jsonify(status="error", message="copies must be numeric"), 400
+    try:
         pause_time = float(data.get("pauseTime", 0))
     except (TypeError, ValueError):
-        return jsonify(status="error", message="copies and pauseTime must be numeric"), 400
+        return jsonify(status="error", message="pauseTime must be numeric"), 400
 
     if copies < 1 or copies > MAX_BATCH_COPIES:
         return jsonify(

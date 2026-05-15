@@ -84,6 +84,7 @@ class TestBatchPrintValidation:
             content_type="application/json",
         )
         assert resp.status_code == 400
+        assert "copies" in resp.json["message"]
         assert "numeric" in resp.json["message"]
 
     def test_copies_above_max_returns_400(self, client):
