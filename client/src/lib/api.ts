@@ -138,11 +138,21 @@ export async function batchPrint(
 }
 
 export async function cancelBatchPrint(jobId: string): Promise<void> {
-  await fetch("/api/batch-print/cancel", {
+  const res = await fetch("/api/batch-print/cancel", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ jobId }),
   });
+  if (!res.ok) {
+    let message = res.statusText || `HTTP ${res.status}`;
+    try {
+      const err = (await res.json()) as PrintResponse;
+      if (err.message) message = err.message;
+    } catch {
+      // Non-JSON body; fall back to statusText.
+    }
+    throw new Error(message);
+  }
 }
 
 // 404 here means the server can't resolve a controllable USB port for
