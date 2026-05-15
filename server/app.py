@@ -91,6 +91,14 @@ def _track_activity_and_wake_printer():
 power_save.start()
 
 
+def _with_cut_mark(widgets: list, settings: dict) -> list:
+    """Append a dotted cut-mark widget on the right edge if settings.cutMark
+    is true. Keeps the original list unmodified."""
+    if settings.get("cutMark"):
+        return widgets + [{"type": "cutMark"}]
+    return widgets
+
+
 @app.route("/api/print", methods=["POST"])
 def api_print():
     data = request.get_json(silent=True) or {}
@@ -102,7 +110,7 @@ def api_print():
         return jsonify(status="error", message="No widgets provided"), 400
 
     try:
-        print_label(widgets, settings, upload_dir=UPLOAD_DIR, printer_id=printer_id)
+        print_label(_with_cut_mark(widgets, settings), settings, upload_dir=UPLOAD_DIR, printer_id=printer_id)
         return jsonify(status="success", message="Label sent to printer.")
     except Exception as e:
         traceback.print_exc()
@@ -119,7 +127,7 @@ def api_preview():
         return jsonify(status="error", message="No widgets provided"), 400
 
     try:
-        png_bytes = preview_label(widgets, settings, upload_dir=UPLOAD_DIR)
+        png_bytes = preview_label(_with_cut_mark(widgets, settings), settings, upload_dir=UPLOAD_DIR)
         return app.response_class(png_bytes, mimetype="image/png")
     except Exception as e:
         traceback.print_exc()
@@ -397,7 +405,7 @@ def api_batch_print():
 
                 try:
                     substituted = _substitute_widgets(widgets, row_values)
-                    print_label(substituted, settings, upload_dir=UPLOAD_DIR, printer_id=printer_id)
+                    print_label(_with_cut_mark(substituted, settings), settings, upload_dir=UPLOAD_DIR, printer_id=printer_id)
                 except Exception as e:
                     traceback.print_exc()
                     yield f"data: {json.dumps({'event': 'error', 'index': idx, 'message': str(e)})}\n\n"

@@ -31,6 +31,29 @@ def mm_to_payload_px(mm: float, margin: float) -> float:
     return max(0, (mm * PIXELS_PER_MM) - margin * 2)
 
 
+# Cut-mark pattern. CUT_MARK_ON pixels on, CUT_MARK_OFF off, repeated for the
+# tape's full height. A column of dotted pixels printed on the right edge of
+# each label so the user can tear/cut between batch-printed labels.
+CUT_MARK_ON = 1
+CUT_MARK_OFF = 2
+
+
+class CutMarkRenderEngine(RenderEngine):
+    """A 1-pixel-wide column of dotted pixels for tear/cut guidance."""
+
+    def render(self, context: RenderContext) -> Image.Image:
+        height = context.height_px
+        # Mode "1": 0 = ink (printed), 1 = no ink. Start fully unprinted.
+        img = Image.new("1", (1, height), 1)
+        pixels = img.load()
+        step = CUT_MARK_ON + CUT_MARK_OFF
+        for y in range(0, height, step):
+            for dy in range(CUT_MARK_ON):
+                if y + dy < height:
+                    pixels[0, y + dy] = 0
+        return img
+
+
 def _build_render_engines(
     widgets: list[dict], upload_dir: str = "",
 ) -> list[RenderEngine]:
@@ -89,6 +112,9 @@ def _build_render_engines(
                 picture_path = os.path.join(upload_dir, filename)
                 if os.path.isfile(picture_path):
                     engines.append(PictureRenderEngine(picture_path=picture_path))
+
+        elif widget_type == "cutMark":
+            engines.append(CutMarkRenderEngine())
 
     return engines
 

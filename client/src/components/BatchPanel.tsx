@@ -29,6 +29,8 @@ function EyeIcon({ active }: { active: boolean }) {
 export function BatchPanel() {
   const widgets = useLabelStore((s) => s.widgets);
   const batch = useLabelStore((s) => s.batch);
+  const settings = useLabelStore((s) => s.settings);
+  const updateSettings = useLabelStore((s) => s.updateSettings);
   const updateBatch = useLabelStore((s) => s.updateBatch);
   const setBatchRow = useLabelStore((s) => s.setBatchRow);
   const addBatchRow = useLabelStore((s) => s.addBatchRow);
@@ -226,7 +228,7 @@ export function BatchPanel() {
           </>
         )}
 
-        <div className="flex flex-wrap gap-4 pt-1 border-t border-gray-100">
+        <div className="flex flex-wrap items-center gap-4 pt-1 border-t border-gray-100">
           <label className="flex items-center gap-1.5">
             <span className="text-gray-600">Copies</span>
             <input
@@ -251,6 +253,17 @@ export function BatchPanel() {
               onChange={(e) => setPauseInput(e.target.value)}
               onBlur={commitPause}
             />
+          </label>
+          <label
+            className="flex items-center gap-1.5"
+            title="Print a dotted line on the right edge of each label so you can tear/cut between them"
+          >
+            <input
+              type="checkbox"
+              checked={settings.cutMark}
+              onChange={(e) => updateSettings({ cutMark: e.target.checked })}
+            />
+            <span className="text-gray-600">Cut mark</span>
           </label>
         </div>
       </div>

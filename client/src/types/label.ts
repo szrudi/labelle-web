@@ -100,5 +100,10 @@ export interface LabelSettings {
   foregroundColor: LabelColor;
   backgroundColor: LabelColor;
   showMargins: boolean;
+  // Print a dotted vertical line on the right edge of each batch-printed
+  // label so the user can tear/cut between them. Ignored in single-label
+  // mode (visible only in BatchPanel) but stored here so it round-trips
+  // through save/load with the rest of the label settings.
+  cutMark: boolean;
   printerId?: string; // Optional printer ID for multi-printer setups
 }
