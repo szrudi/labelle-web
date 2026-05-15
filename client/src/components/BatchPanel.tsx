@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLabelStore } from "../state/useLabelStore";
 import { detectVariables } from "../lib/variables";
-import { MAX_BATCH_COPIES, MAX_BATCH_PAUSE_SECONDS } from "../lib/constants";
+import {
+  MAX_BATCH_COPIES,
+  MAX_BATCH_PAUSE_SECONDS,
+  MAX_BATCH_ROWS,
+} from "../lib/constants";
 
 function EyeIcon({ active }: { active: boolean }) {
   return (
@@ -236,10 +240,16 @@ export function BatchPanel() {
                 </tbody>
               </table>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-3 items-center">
               <button
-                className="text-blue-600 hover:text-blue-800 text-xs"
+                className="text-blue-600 hover:text-blue-800 disabled:text-gray-400 disabled:cursor-not-allowed text-xs"
                 onClick={addBatchRow}
+                disabled={batch.rows.length >= MAX_BATCH_ROWS}
+                title={
+                  batch.rows.length >= MAX_BATCH_ROWS
+                    ? `Maximum ${MAX_BATCH_ROWS} rows`
+                    : undefined
+                }
               >
                 + Add Row
               </button>
