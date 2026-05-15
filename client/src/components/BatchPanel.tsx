@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLabelStore } from "../state/useLabelStore";
 import { detectVariables } from "../lib/variables";
 
@@ -33,6 +33,29 @@ export function BatchPanel() {
 
   const variables = useMemo(() => detectVariables(widgets), [widgets]);
 
+  // <details> open state is decoupled from batch.enabled. Opening the panel
+  // to view its contents should not flip the Print button to batch mode.
+  // Default-open when batch is already enabled (e.g., loaded from file).
+  const [open, setOpen] = useState(batch.enabled);
+
+  // Local string state for number inputs so the user can clear and retype
+  // without the value snapping back to a clamped minimum mid-edit.
+  const [copiesInput, setCopiesInput] = useState(String(batch.copies));
+  const [pauseInput, setPauseInput] = useState(String(batch.pauseTime));
+  useEffect(() => setCopiesInput(String(batch.copies)), [batch.copies]);
+  useEffect(() => setPauseInput(String(batch.pauseTime)), [batch.pauseTime]);
+
+  const commitCopies = () => {
+    const n = Math.max(1, Math.min(999, Number(copiesInput) || 1));
+    updateBatch({ copies: n });
+    setCopiesInput(String(n));
+  };
+  const commitPause = () => {
+    const n = Math.max(0, Math.min(60, Number(pauseInput) || 0));
+    updateBatch({ pauseTime: n });
+    setPauseInput(String(n));
+  };
+
   const handleAddVariable = () => {
     const state = useLabelStore.getState();
     const existing = new Set(detectVariables(state.widgets));
@@ -55,15 +78,21 @@ export function BatchPanel() {
   return (
     <details
       className="bg-white rounded-lg shadow"
-      open={batch.enabled}
-      onToggle={(e) =>
-        updateBatch({ enabled: (e.target as HTMLDetailsElement).open })
-      }
+      open={open}
+      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
     >
       <summary className="cursor-pointer select-none p-3 text-sm font-medium text-gray-700">
         Batch Print
       </summary>
       <div className="p-3 pt-0 space-y-3 text-sm">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={batch.enabled}
+            onChange={(e) => updateBatch({ enabled: e.target.checked })}
+          />
+          <span className="text-gray-700">Enable batch printing</span>
+        </label>
         <div className="flex flex-wrap gap-4">
           <label className="flex items-center gap-1.5">
             <span className="text-gray-600">Copies</span>
@@ -72,10 +101,9 @@ export function BatchPanel() {
               className="input w-20"
               min={1}
               max={999}
-              value={batch.copies}
-              onChange={(e) =>
-                updateBatch({ copies: Math.max(1, Number(e.target.value)) })
-              }
+              value={copiesInput}
+              onChange={(e) => setCopiesInput(e.target.value)}
+              onBlur={commitCopies}
             />
           </label>
           <label className="flex items-center gap-1.5">
@@ -86,12 +114,9 @@ export function BatchPanel() {
               min={0}
               max={60}
               step={0.5}
-              value={batch.pauseTime}
-              onChange={(e) =>
-                updateBatch({
-                  pauseTime: Math.max(0, Number(e.target.value)),
-                })
-              }
+              value={pauseInput}
+              onChange={(e) => setPauseInput(e.target.value)}
+              onBlur={commitPause}
             />
           </label>
         </div>
