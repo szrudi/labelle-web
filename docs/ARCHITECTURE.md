@@ -84,6 +84,10 @@ The batch print feature allows printing multiple labels with variable content (e
 
 **`PrintButton`** switches to batch mode when `batch.enabled` is true: shows "Batch Print (N labels)", streams progress from the server, and offers a cancel button during printing.
 
+**Print order:** row-major. With N rows and C copies the printer outputs `row1 × C, row2 × C, …` so each label's copies stay together — this matches the common "N copies of each" case where users tear off a stack per recipient. Copy-major ordering (`row1 row2 … rowN` repeated C times) is not currently supported.
+
+**Variable rename heuristic:** when a `updateWidget` edit removes one variable from a widget and adds another, the store treats it as a rename — batch row values follow the new name, and any other widgets referencing the old name are rewritten. The heuristic is set-diff over the widget's variables and has a known limitation: keystroke-by-keystroke typing in a real `<input>` (e.g. `:name:` → `:names` → `:names:`) produces an intermediate state with no closing colon, where the regex sees a pure removal followed later by a pure addition. The row value for `name` orphans in that case. In practice users edit via select-and-replace or paste, which works correctly; orphaned values reappear if the original name is typed back.
+
 ### Type Definitions
 
 All shared types live in `types/label.ts`:

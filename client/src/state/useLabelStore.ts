@@ -153,6 +153,15 @@ export const useLabelStore = create<LabelStore>((set) => ({
       // Scoping to one widget avoids the cross-widget false-positive where
       // unrelated edits in two widgets could each contribute a single add
       // and remove.
+      //
+      // Known limitation: keystroke-by-keystroke typing in a controlled
+      // <input> (e.g. :name: -> :names -> :names:) hits an intermediate
+      // state with no closing colon, where detectVariables returns [].
+      // The transition then looks like a pure removal followed (one
+      // keystroke later) by a pure addition — neither half triggers the
+      // rename branch, and the row value for the old name orphans. In
+      // practice users edit via select-and-replace or paste, which works.
+      // See docs/ARCHITECTURE.md "Variable rename heuristic" for context.
       const before = detectVariables([oldWidget]);
       const after = detectVariables([newWidget]);
       const removed = before.filter((v) => !after.includes(v));
