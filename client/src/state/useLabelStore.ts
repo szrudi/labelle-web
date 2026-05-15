@@ -158,10 +158,15 @@ export const useLabelStore = create<LabelStore>((set) => ({
       if (removed.length === 1 && added.length === 1) {
         const oldName = removed[0]!;
         const newName = added[0]!;
-        const rows = s.batch.rows.map((row) => {
+        const rows: Record<string, string>[] = s.batch.rows.map((row) => {
           if (!(oldName in row)) return row;
-          const { [oldName]: value, ...rest } = row;
-          return { ...rest, [newName]: value };
+          const value = row[oldName] ?? "";
+          const next: Record<string, string> = {};
+          for (const [k, v] of Object.entries(row)) {
+            if (k !== oldName) next[k] = v;
+          }
+          next[newName] = value;
+          return next;
         });
         return { widgets, batch: { ...s.batch, rows } };
       }
