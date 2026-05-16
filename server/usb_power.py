@@ -134,17 +134,24 @@ _STATE_FILE = Path(
 )
 
 
-def _load_state(path: Path | None = None) -> tuple[str, int] | None:
-    """Read a previously-saved (hub, port) from disk, or None if absent/invalid."""
+def _read_full_state(path: Path | None = None) -> dict:
+    """Read the full state dict from disk, or empty dict if absent/invalid."""
     if path is None:
         path = _STATE_FILE
     try:
         data = json.loads(path.read_text())
+        if isinstance(data, dict):
+            return data
     except FileNotFoundError:
-        return None
+        return {}
     except (OSError, json.JSONDecodeError) as e:
-        logger.warning("Could not load printer port state from %s: %s", path, e)
-        return None
+        logger.warning("Could not load state from %s: %s", path, e)
+    return {}
+
+
+def _load_state(path: Path | None = None) -> tuple[str, int] | None:
+    """Read a previously-saved (hub, port) from disk, or None if absent/invalid."""
+    data = _read_full_state(path)
     hub = data.get("hub")
     port = data.get("port")
     if isinstance(hub, str) and isinstance(port, int):
@@ -157,6 +164,9 @@ def _load_state(path: Path | None = None) -> tuple[str, int] | None:
 
 def _save_state(hub: str, port: int, path: Path | None = None) -> None:
     """Persist (hub, port) so a container restart can recover the cache.
+
+    Merges into the existing state dict so other modules that store data
+    in the same file (e.g. per-printer label settings) aren't clobbered.
 
     Best-effort: a write failure (read-only fs, missing volume mount,
     permissions) only loses cross-restart memory, never breaks runtime.
@@ -171,8 +181,11 @@ def _save_state(hub: str, port: int, path: Path | None = None) -> None:
         path = _STATE_FILE
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
+        state = _read_full_state(path)
+        state["hub"] = hub
+        state["port"] = port
         tmp = path.with_suffix(path.suffix + ".tmp")
-        tmp.write_text(json.dumps({"hub": hub, "port": port}))
+        tmp.write_text(json.dumps(state))
         tmp.replace(path)
     except OSError as e:
         logger.warning("Could not save printer port state to %s: %s", path, e)

@@ -12,6 +12,7 @@ import type {
 } from "../types/label";
 import { DEFAULT_MARGIN_PX, DEFAULT_FONT_SCALE } from "../lib/constants";
 import { detectVariables } from "../lib/variables";
+import { fetchPrinterSettings, savePrinterSettings } from "../lib/api";
 
 function newBatchRow(values: Record<string, string> = {}) {
   return { id: uuidv4(), values };
@@ -52,7 +53,7 @@ interface LabelStore {
   ) => void;
 }
 
-export const useLabelStore = create<LabelStore>((set) => ({
+export const useLabelStore = create<LabelStore>((set, get) => ({
   widgets: [
     {
       id: uuidv4(),
@@ -218,10 +219,54 @@ export const useLabelStore = create<LabelStore>((set) => ({
       return { widgets };
     }),
 
-  updateSettings: (patch) =>
-    set((s) => ({ settings: { ...s.settings, ...patch } })),
+  updateSettings: (patch) => {
+    const prevPrinterId = get().settings.printerId;
+    set((s) => ({ settings: { ...s.settings, ...patch } }));
 
-  setAvailablePrinters: (printers) => set({ availablePrinters: printers }),
+    const state = get();
+    const printerId = state.settings.printerId;
+
+    // When the user switches to a different printer, load its saved
+    // settings (tape size, colors) from the previous session.
+    if (printerId && printerId !== prevPrinterId) {
+      _loadAndApplyPrinterSettings(printerId, set);
+    }
+
+    // Persist per-printer settings when the user changes tape size or
+    // colors while a printer is actively selected.
+    if (!printerId) return;
+
+    const persistedFields = [
+      "tapeSizeMm",
+      "foregroundColor",
+      "backgroundColor",
+    ] as const;
+    const hasPersistedChange = persistedFields.some(
+      (k) => k in patch,
+    );
+    if (!hasPersistedChange) return;
+
+    const { tapeSizeMm, foregroundColor, backgroundColor } = state.settings;
+    savePrinterSettings(printerId, {
+      tapeSizeMm,
+      foregroundColor,
+      backgroundColor,
+    }).catch((err) => {
+      console.warn("Failed to persist printer settings:", err);
+    });
+  },
+
+  setAvailablePrinters: (printers) => {
+    set({ availablePrinters: printers });
+
+    // If a printer was previously selected and it still exists, load
+    // its saved settings. This covers the case where the printer list
+    // arrives after the UI has already mounted (e.g. on refresh).
+    const printerId = get().settings.printerId;
+    if (printerId && printers.some((p) => p.id === printerId)) {
+      _loadAndApplyPrinterSettings(printerId, set);
+    }
+  },
 
   updateBatch: (patch) =>
     set((s) => ({ batch: { ...s.batch, ...patch } })),
@@ -263,3 +308,40 @@ export const useLabelStore = create<LabelStore>((set) => ({
   loadLabel: (widgets, settings, batch) =>
     set({ widgets, settings, batch: batch ?? defaultBatch() }),
 }));
+
+/**
+ * Fetch saved printer settings and apply them to the current label
+ * settings. Silently does nothing on failure — the user's current
+ * settings are left untouched.
+ */
+function _loadAndApplyPrinterSettings(
+  printerId: string,
+  set: (
+    partial:
+      | LabelStore
+      | Partial<LabelStore>
+      | ((state: LabelStore) => LabelStore | Partial<LabelStore>),
+  ) => void,
+) {
+  fetchPrinterSettings(printerId)
+    .then((saved) => {
+      if (!saved) return;
+      set((state) => {
+        const patch: Partial<LabelSettings> = {};
+        for (const key of [
+          "tapeSizeMm",
+          "foregroundColor",
+          "backgroundColor",
+        ] as const) {
+          if (saved[key] !== undefined) {
+            (patch as Record<string, unknown>)[key] = saved[key];
+          }
+        }
+        if (Object.keys(patch).length === 0) return state;
+        return { settings: { ...state.settings, ...patch } };
+      });
+    })
+    .catch((err) => {
+      console.warn("Failed to load printer settings:", err);
+    });
+}

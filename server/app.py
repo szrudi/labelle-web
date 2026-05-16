@@ -22,6 +22,7 @@ import power_save
 import usb_power
 from label_builder import paint_cut_mark_in_trailing_margin, preview_label, render_payload
 from printer_service import list_printers, print_bitmap, print_label
+import printer_settings
 
 # Seconds to wait after power-on before reading status, so the device has
 # time to re-enumerate on the USB bus.
@@ -180,6 +181,34 @@ def api_serve_upload(filename):
 @app.route("/api/printers", methods=["GET"])
 def api_printers():
     return jsonify(printers=list_printers())
+
+
+@app.route("/api/printers/<printer_id>/settings", methods=["GET"])
+def api_get_printer_settings(printer_id: str):
+    """Return persisted label settings for a specific printer.
+
+    Returns ``null`` when no settings have been saved for this printer
+    — the client treats that as "use defaults".
+    """
+    stored = printer_settings.get_settings(printer_id)
+    if stored is not None:
+        return jsonify(stored)
+    return jsonify(None)
+
+
+@app.route("/api/printers/<printer_id>/settings", methods=["PUT"])
+def api_put_printer_settings(printer_id: str):
+    """Save label settings for a specific printer.
+
+    Accepts a JSON object with any subset of the persistable fields
+    (tapeSizeMm, foregroundColor, backgroundColor). Unknown fields
+    are silently ignored.
+    """
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify(status="error", message="Request body must be a JSON object"), 400
+    printer_settings.save_settings(printer_id, data)
+    return jsonify(status="ok")
 
 
 def _printer_port_or_404():

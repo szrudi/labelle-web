@@ -5,6 +5,13 @@ import type {
   PowerStatus,
 } from "../types/label";
 
+/** Per-printer persisted settings subset returned by the API. */
+export interface PersistedPrinterSettings {
+  tapeSizeMm?: number;
+  foregroundColor?: string;
+  backgroundColor?: string;
+}
+
 interface PrintResponse {
   status: string;
   message: string;
@@ -188,4 +195,37 @@ export async function powerOn(): Promise<PowerStatus> {
 export async function powerOff(): Promise<PowerStatus> {
   const res = await fetch("/api/power/off", { method: "POST" });
   return _readPowerResponse(res);
+}
+
+/**
+ * Fetch per-printer label settings saved from a previous session.
+ * Returns null when no settings have been saved for this printer.
+ */
+export async function fetchPrinterSettings(
+  printerId: string,
+): Promise<PersistedPrinterSettings | null> {
+  // URL-encode the printer ID so special characters in USB IDs don't break routing.
+  const res = await fetch(
+    `/api/printers/${encodeURIComponent(printerId)}/settings`,
+  );
+  if (!res.ok) {
+    console.warn("Failed to fetch printer settings:", res.status);
+    return null;
+  }
+  return res.json() as Promise<PersistedPrinterSettings | null>;
+}
+
+/**
+ * Save label settings for the currently-selected printer.
+ * Only tapeSizeMm, foregroundColor, and backgroundColor are persisted.
+ */
+export async function savePrinterSettings(
+  printerId: string,
+  settings: PersistedPrinterSettings,
+): Promise<void> {
+  await fetch(`/api/printers/${encodeURIComponent(printerId)}/settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
 }
