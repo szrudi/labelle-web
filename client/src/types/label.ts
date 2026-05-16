@@ -66,6 +66,17 @@ export interface PrinterInfo {
   name: string;
   vendorProductId: string;
   serialNumber?: string;
+  /** Persisted per-printer label settings from the backend.
+   *  Present when the user has previously saved settings for this
+   *  printer via POST /api/printer-settings/<id>. */
+  labelSettings?: PrinterLabelSettings;
+}
+
+/** The subset of LabelSettings that is persisted per-printer. */
+export interface PrinterLabelSettings {
+  tapeSizeMm?: TapeSize;
+  foregroundColor?: LabelColor;
+  backgroundColor?: LabelColor;
 }
 
 export interface PowerStatus {

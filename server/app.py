@@ -22,6 +22,7 @@ import power_save
 import usb_power
 from label_builder import paint_cut_mark_in_trailing_margin, preview_label, render_payload
 from printer_service import list_printers, print_bitmap, print_label
+from printer_persistence import load_printer_settings, save_printer_settings
 
 # Seconds to wait after power-on before reading status, so the device has
 # time to re-enumerate on the USB bus.
@@ -180,6 +181,38 @@ def api_serve_upload(filename):
 @app.route("/api/printers", methods=["GET"])
 def api_printers():
     return jsonify(printers=list_printers())
+
+
+@app.route("/api/printer-settings/<printer_id>", methods=["GET"])
+def api_get_printer_settings(printer_id: str):
+    """Return persisted label settings for a printer.
+
+    Returns an empty object if no settings have been saved for this
+    printer.
+    """
+    settings = load_printer_settings(printer_id)
+    return jsonify(settings)
+
+
+@app.route("/api/printer-settings/<printer_id>", methods=["POST"])
+def api_save_printer_settings(printer_id: str):
+    """Persist label settings for a printer.
+
+    Accepts JSON body with any combination of:
+        tapeSizeMm (int): 6, 9, 12, or 19
+        foregroundColor (str): white, black, yellow, blue, red, green
+        backgroundColor (str): white, black, yellow, blue, red, green
+
+    Invalid keys are ignored. Invalid values are dropped with a warning
+    but the request still succeeds (other valid fields are saved).
+    """
+    data = request.get_json(silent=True) or {}
+    try:
+        save_printer_settings(printer_id, data)
+    except Exception:
+        traceback.print_exc()
+        return jsonify(status="error", message="Failed to save printer settings"), 500
+    return jsonify(status="ok")
 
 
 def _printer_port_or_404():

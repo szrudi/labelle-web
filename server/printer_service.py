@@ -7,6 +7,7 @@ from labelle.lib.devices.dymo_labeler import DymoLabeler
 
 from config import get_virtual_printers
 from label_builder import render_payload, render_preview
+from printer_persistence import get_all_printer_settings
 from virtual_printer import VirtualPrinter
 
 # Note: libusb cache invalidation lives in `usb_power.power_on()`, not
@@ -40,8 +41,14 @@ def _fallback_to_virtual(widgets: list[dict], settings: dict, upload_dir: str) -
 def list_printers() -> list[dict]:
     """List all available printers: real DYMO printers via USB and configured virtual printers.
 
+    Each printer entry now includes a 'labelSettings' key with any persisted
+    per-printer settings (tapeSizeMm, foregroundColor, backgroundColor) so
+    the frontend can pre-fill the UI.
+
     Never raises; returns partial results on scan failure.
     """
+    # Load persisted per-printer settings once for this scan.
+    all_settings = get_all_printer_settings()
     printers: list[dict] = []
 
     # Add real USB printers
@@ -60,12 +67,16 @@ def list_printers() -> list[dict]:
 
             name = " ".join(parts) if parts else dev.usb_id
 
-            printers.append({
+            printer_entry = {
                 "id": dev.usb_id,
                 "name": name,
                 "vendorProductId": dev.vendor_product_id,
                 "serialNumber": dev.serial_number,
-            })
+            }
+            saved = all_settings.get(dev.usb_id)
+            if saved:
+                printer_entry["labelSettings"] = saved
+            printers.append(printer_entry)
     except Exception:
         traceback.print_exc()
 
@@ -73,12 +84,16 @@ def list_printers() -> list[dict]:
     try:
         for config in get_virtual_printers():
             virtual = VirtualPrinter(config["name"], config["path"], output_mode=config.get("output", "image"))
-            printers.append({
+            printer_entry = {
                 "id": virtual.id,
                 "name": virtual.display_name,
                 "vendorProductId": "virtual",
                 "serialNumber": None,
-            })
+            }
+            saved = all_settings.get(virtual.id)
+            if saved:
+                printer_entry["labelSettings"] = saved
+            printers.append(printer_entry)
     except Exception:
         traceback.print_exc()
 
@@ -112,7 +127,8 @@ def print_label(
         device_manager = DeviceManager()
         device_manager.scan()
 
-        # TODO: Future improvement - store per-printer settings (tape size, margins, color)
+        # Per-printer settings are loaded from printer_persistence at scan time
+        # and attached to the /api/printers response for the frontend.
         if printer_id:
             matching_devices = [dev for dev in device_manager.devices if dev.usb_id == printer_id]
             if not matching_devices:

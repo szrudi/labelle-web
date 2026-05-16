@@ -3,6 +3,7 @@ import type {
   LabelSettings,
   PrinterInfo,
   PowerStatus,
+  PrinterLabelSettings,
 } from "../types/label";
 
 interface PrintResponse {
@@ -188,4 +189,31 @@ export async function powerOn(): Promise<PowerStatus> {
 export async function powerOff(): Promise<PowerStatus> {
   const res = await fetch("/api/power/off", { method: "POST" });
   return _readPowerResponse(res);
+}
+
+export async function savePrinterSettings(
+  printerId: string,
+  settings: Partial<PrinterLabelSettings>,
+): Promise<void> {
+  const res = await fetch(`/api/printer-settings/${encodeURIComponent(printerId)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  if (!res.ok) {
+    const err = (await res.json()) as PrintResponse;
+    throw new Error(err.message || "Failed to save printer settings");
+  }
+}
+
+export async function fetchPrinterSettings(
+  printerId: string,
+): Promise<PrinterLabelSettings> {
+  const res = await fetch(
+    `/api/printer-settings/${encodeURIComponent(printerId)}`,
+  );
+  if (!res.ok) {
+    return {};
+  }
+  return res.json() as Promise<PrinterLabelSettings>;
 }

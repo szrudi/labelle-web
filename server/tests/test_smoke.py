@@ -15,9 +15,27 @@ SERVER_MODULES = [
     "config",
     "label_builder",
     "power_save",
+    "printer_persistence",
     "printer_service",
     "usb_power",
     "virtual_printer",
+]
+
+# Every route that should be registered on app startup.
+# Keep in sync with @app.route decorators in app.py.
+EXPECTED_ROUTES = [
+    "/api/print",
+    "/api/preview",
+    "/api/printers",
+    "/api/printer-settings/<printer_id>",
+    "/api/upload-image",
+    "/api/uploads/<filename>",
+    "/api/health",
+    "/api/power/status",
+    "/api/power/on",
+    "/api/power/off",
+    "/api/batch-print",
+    "/api/batch-print/cancel",
 ]
 
 
@@ -70,17 +88,7 @@ class TestFlaskApp:
 
     @pytest.mark.parametrize(
         "rule",
-        [
-            "/api/print",
-            "/api/preview",
-            "/api/printers",
-            "/api/upload-image",
-            "/api/uploads/<filename>",
-            "/api/health",
-            "/api/power/status",
-            "/api/power/on",
-            "/api/power/off",
-        ],
+        EXPECTED_ROUTES,
     )
     def test_route_registered(self, rule):
         from app import app

@@ -1,8 +1,8 @@
 import { useLabelStore } from "../state/useLabelStore";
 import { TAPE_SIZES, LABEL_COLORS } from "../lib/constants";
-import { fetchPrinters } from "../lib/api";
+import { fetchPrinters, savePrinterSettings } from "../lib/api";
 import type { TapeSize, Alignment, LabelColor } from "../types/label";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { PowerToggle } from "./PowerToggle";
 
 export function SettingsBar() {
@@ -29,7 +29,6 @@ export function SettingsBar() {
   // - Show printer status indicators (online/offline)
   // - Display tape type/color/width for each printer
   // - Allow users to set friendly aliases for printers
-  // - Remember last selected printer per user
   // - Support printer-specific preset configurations
   const showPrinterSelector = availablePrinters.length > 1;
 
@@ -42,6 +41,61 @@ export function SettingsBar() {
     ? availablePrinters.find((p) => p.id === settings.printerId)
     : null;
   const selectedIsVirtual = selectedPrinter?.vendorProductId === "virtual";
+
+  // Track the last printer we saved settings for, so we only save
+  // when the user actually changes something after selecting a printer.
+  const lastSavedPrinterRef = useRef<string | undefined>(undefined);
+
+  // When the printer selection changes and the new printer has
+  // persisted settings, pre-fill them into the label settings UI.
+  useEffect(() => {
+    const pid = settings.printerId;
+    if (!pid) return;
+    const printer = availablePrinters.find((p) => p.id === pid);
+    if (printer?.labelSettings) {
+      const patch: Partial<typeof settings> = {};
+      if (printer.labelSettings.tapeSizeMm !== undefined) {
+        patch.tapeSizeMm = printer.labelSettings.tapeSizeMm;
+      }
+      if (printer.labelSettings.foregroundColor !== undefined) {
+        patch.foregroundColor = printer.labelSettings.foregroundColor;
+      }
+      if (printer.labelSettings.backgroundColor !== undefined) {
+        patch.backgroundColor = printer.labelSettings.backgroundColor;
+      }
+      if (Object.keys(patch).length > 0) {
+        update(patch);
+      }
+    }
+  }, [settings.printerId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When the user changes any per-printer setting (tape size or
+  // colors) while a specific printer is selected, persist it so it
+  // survives page reloads.
+  useEffect(() => {
+    const pid = settings.printerId;
+    if (!pid) {
+      lastSavedPrinterRef.current = undefined;
+      return;
+    }
+    // Avoid saving on the initial pre-fill triggered by the
+    // printer-selection effect above.
+    if (lastSavedPrinterRef.current === pid) {
+      savePrinterSettings(pid, {
+        tapeSizeMm: settings.tapeSizeMm,
+        foregroundColor: settings.foregroundColor,
+        backgroundColor: settings.backgroundColor,
+      }).catch((err) => {
+        console.warn("Failed to persist printer settings:", err);
+      });
+    }
+    lastSavedPrinterRef.current = pid;
+  }, [
+    settings.printerId,
+    settings.tapeSizeMm,
+    settings.foregroundColor,
+    settings.backgroundColor,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <details className="bg-white rounded-lg shadow">
