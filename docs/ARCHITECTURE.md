@@ -196,8 +196,14 @@ POST /api/batch-print/cancel
 GET /api/health
   -> app.py (api_health)
     -> Read version from package.json
-  <- { status, version }
+    -> Read commit + branch from GIT_SHA/GIT_BRANCH env (set at Docker build)
+       or git rev-parse fallback
+  <- { status, version, commit, branch }
 ```
+
+### Versioning convention
+
+`package.json` always holds the version this commit *would* release if merged — there is **no `-dev` suffix on feature branches**. The footer (`client/src/components/Footer.tsx`) reads `/api/health` at runtime and renders `v{version}-dev ({commit})` whenever `/api/health` reports a `branch` that isn't `main` (if the health call fails the footer omits `-dev` rather than mislabeling a build with no commit info). Dev / PR / local builds are therefore visually distinguishable from production releases without needing to mutate `package.json` at merge time. `release.yml` tags `vX.Y.Z` when the version on `main` changes, so the merge commit *is* the release commit.
 
 ### Label Builder (`label_builder.py`)
 
