@@ -16,12 +16,16 @@ export function Footer() {
   // and commit. The Vite-injected __APP_VERSION__ is a build-time
   // fallback for the very early window before the API responds.
   useEffect(() => {
-    fetch("/api/health")
+    const controller = new AbortController();
+    fetch("/api/health", { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : null))
       .then((data: HealthInfo | null) => {
         if (data?.version) setHealth(data);
       })
-      .catch(() => {});
+      .catch(() => {
+        // AbortError on unmount, or network failure — fall back to __APP_VERSION__.
+      });
+    return () => controller.abort();
   }, []);
 
   // Only nag about a newer release when we're on a production build —
@@ -30,7 +34,10 @@ export function Footer() {
   const onMain = health?.branch === "main";
   useEffect(() => {
     if (!health?.version || !onMain) return;
-    fetch("https://api.github.com/repos/szrudi/labelle-web/releases/latest")
+    const controller = new AbortController();
+    fetch("https://api.github.com/repos/szrudi/labelle-web/releases/latest", {
+      signal: controller.signal,
+    })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!data?.tag_name) return;
@@ -39,7 +46,10 @@ export function Footer() {
           setLatestVersion(latest);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        // AbortError on unmount, or GH API unreachable — skip the "newer release" hint.
+      });
+    return () => controller.abort();
   }, [health?.version, onMain]);
 
   const version = health?.version ?? __APP_VERSION__;
