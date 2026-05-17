@@ -6,9 +6,11 @@ v1's UI is a competent web port of the original labelle desktop GUI. v2 moves th
 
 ### Relationship to upstream labelle
 
-[labelle-org/labelle](https://github.com/labelle-org/labelle) has discussed adopting an external project as an eventual official "labelle-web" ([#45](https://github.com/labelle-org/labelle/issues/45) and related issues). This repository (`szrudi/labelle-web`) shares that name accidentally — it was created and named before that upstream conversation was visible to us. It is an independent project, not a fork, and targets a slightly different audience: a Raspberry Pi as a personal label-printing appliance accessed primarily from a phone.
+[labelle-org/labelle](https://github.com/labelle-org/labelle) has discussed adopting an external project as an eventual official "labelle-web" ([#45](https://github.com/labelle-org/labelle/issues/45) and related issues). This repository (`szrudi/labelle-web`) shares that name accidentally — it was created and named before that upstream conversation was visible to us.
 
-We're not waiting on or aiming to be adopted into the upstream effort. At this point this project ships and has hardware in regular use, which puts it ahead of the candidates currently referenced upstream. The v2 plan stands on its own goals (template-first UX, mobile-first polish) regardless of how the upstream web-frontend conversation settles.
+The longer-term aspiration is for this project to be the one adopted into labelle as the official web frontend. It currently ships, has hardware in regular use (a Raspberry Pi appliance accessed primarily from a phone), and is further along than the candidates upstream references today. Engaging labelle-org for input before diving into v2 implementation is on the table.
+
+In the meantime the v2 plan stands on its own goals (template-first UX, mobile-first polish). Work isn't gated on upstream blessing, but the direction shouldn't deliberately diverge from a path toward integration either.
 
 ## Sequence
 
