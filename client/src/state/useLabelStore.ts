@@ -179,7 +179,8 @@ export const useLabelStore = create<LabelStore>((set) => ({
       if (removed.length === 1 && added.length === 1) {
         const oldName = removed[0]!;
         const newName = added[0]!;
-        // Variable names match \w+ — no regex escaping needed.
+        // Variable names match [\w-]+; none of those characters need regex
+        // escaping (hyphen is only a metacharacter inside character classes).
         const placeholderRe = new RegExp(`\\{\\{${oldName}\\}\\}`, "g");
         const newPlaceholder = `{{${newName}}}`;
 
