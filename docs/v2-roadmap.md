@@ -1,8 +1,14 @@
 # labelle-web v2 — Iterative UI Overhaul
 
+> **Status: open brainstorm, not a committed plan.** This document is an
+> in-progress draft of where v2 *might* go. Directional choices (especially the
+> template-first homepage thesis in Phase 2) are explicitly up for discussion
+> with labelle-org and other contributors before any code lands. Feedback and
+> redirection are welcome — open an issue or comment on [PR #30](https://github.com/szrudi/labelle-web/pull/30).
+
 ## Why v2
 
-v1's UI is a competent web port of the original labelle desktop GUI. v2 moves the project from "designer-first, port of the desktop GUI" toward "**template-first** label printer that happens to also have a designer", reaching that destination by way of a **mobile-first polish** of what we already have.
+v1's UI is a competent web port of the original labelle desktop GUI. v2 is exploring whether a **mobile-first polish** of what we already have — followed by an optional shift toward a more **template-first** experience — would be a better fit for how the tool is actually used. Both halves of that are exploratory, with the mobile-first improvements being the firmer commitment and the template-first shift being the genuinely speculative part.
 
 ### Relationship to upstream labelle
 
@@ -10,11 +16,11 @@ v1's UI is a competent web port of the original labelle desktop GUI. v2 moves th
 
 The longer-term aspiration is for this project to be the one adopted into labelle as the official web frontend. It currently ships, has hardware in regular use (a Raspberry Pi appliance accessed primarily from a phone), and is further along than the candidates upstream references today. Engaging labelle-org for input before diving into v2 implementation is on the table.
 
-In the meantime the v2 plan stands on its own goals (template-first UX, mobile-first polish). Work isn't gated on upstream blessing, but the direction shouldn't deliberately diverge from a path toward integration either.
+In the meantime the v2 brainstorm stays open. Mobile-first polish is the firmer direction; the template-first thesis is one possibility being evaluated, not a settled destination — labelle-org input on direction would be valuable before committing to the larger Phase 2 slices.
 
 ## Sequence
 
-**Phase 1 → Phase 2.** Mobile-first polish first, template-first home second. Each slice is **independently mergeable** and ships to `main` with a SemVer bump — no long-lived branches, no big-bang switchover. The single planned breaking change (Phase 2.5, template-first homepage) becomes the v2.0.0 cutover when it lands.
+**Phase 1 first, Phase 2 only if it makes sense after Phase 1 lands and the direction has been validated.** Each slice is **independently mergeable** and ships to `main` with a SemVer bump — no long-lived branches, no big-bang switchover. The most speculative slice (2.5, template-first homepage) would become a v2.0.0 cutover *if* we go that way; it's the one most likely to be reshaped or dropped after discussion.
 
 Tracking lives in the `labelle-web v2` project; phase progress is tracked via these umbrella issues:
 
@@ -84,9 +90,11 @@ Preview stays visible while editing, settings/batch become sheets on mobile, the
 
 ---
 
-## Phase 2 — Template-first transition
+## Phase 2 — Template-first transition *(speculative)*
 
-Shift the default experience from "designer first" to "template first". By the end of this phase a first-time mobile user lands on a gallery, taps a template, fills variables, and prints — without ever seeing the widget list.
+The thesis under evaluation: **if** repetitive labeling (asset tags, name badges, jar labels) is a significant share of how this tool is used, a template-first experience would make a lot of mobile flows much faster. The maintainer's own use is closer to one-off labels, so this thesis is genuinely uncertain — open to reshaping based on labelle-org input and user feedback. Phase 1 stands on its own regardless of whether Phase 2 happens.
+
+Within Phase 2, slices 2.1–2.4 (server-saved templates, gallery as a route, sequence + date widgets) are useful features even *without* the homepage flip. Only 2.5 (template-first home) is the speculative big swing.
 
 ### 2.1 — Save labels to server, SQLite-backed (M)
 - `GET/POST/DELETE /api/templates`, `GET /api/templates/:id`.
@@ -127,22 +135,26 @@ Shift the default experience from "designer first" to "template first". By the e
 - Resolved server-side at print time. Editor previews "as printed today".
 - **Done when**: label with `Date(today+30, dd-mm-yyyy)` prints today's date plus 30 days.
 
-### 2.5 — Template-first home + variable fill view (L, **breaking**)
-- `/` now renders the gallery; designer moves to `/design`.
+### 2.5 — Template-first home + variable fill view (L, **breaking**, *most speculative slice*)
+
+This is the speculative big swing. It may not happen; an alternative shape is to keep the designer at `/` and surface templates prominently from there. Direction here will be reshaped based on feedback before commitment.
+
+- `/` would render the gallery; designer moves to `/design`.
 - "New blank label" on the gallery for from-scratch users.
 - Templates with variables → a "fill" sheet (reuses 1.2 sheet primitive + 1.3 stacked-row UI) → print without entering designer.
 - "Edit template" affordance for tweaks.
 - URLs: `/t/:id` (fill), `/t/:id/edit` (designer-with-template-loaded).
-- This is the v2.0.0 cutover. Major bump.
-- **Done when**: first-time mobile user lands on `/`, taps a name-badge template, fills "Alice", and prints — never seeing the widget list.
+- If we go this way, this PR is the v2.0.0 cutover. Major bump.
+- **Done when** (if pursued): first-time mobile user lands on `/`, taps a name-badge template, fills "Alice", and prints — never seeing the widget list.
 
 ---
 
-## Open decisions
+## Open questions
 
-1. **Routing library (2.2)** — React Router (~10 KB gzipped, full URL support including shareable template links) vs. a 30-line hash router (smaller, but no clean share-this-template URLs). Leaning React Router.
+0. **Is the template-first thesis right at all?** Big one. DYMO Connect / Brother P-touch open to template galleries because commercial users skew repetitive, but this project's primary maintainer use is one-off labeling — closer to designer-first. Phase 2.5 might be the wrong destination; templates as a feature alongside the designer may be the right answer. Input from labelle-org and other users would be valuable before committing.
+1. **Routing library (2.2)** — React Router (~10 KB gzipped, full URL support including shareable template links) vs. TanStack Router (~35 KB but fully type-safe params/search and route-level loaders) vs. a 30-line hash router. Leaning React Router for the app's size, but happy to be persuaded.
 2. **Spacer widget render path (1.4)** — labelle's render engines may not have an "empty space" primitive. 30-min spike before starting 1.4 to confirm we extend the engine list cleanly or fake it via a transparent text engine.
-3. **PWA offline ambition (1.5)** — server-side render means an unreachable Pi can't show a preview. Decision: keep server-side render, surface offline state honestly. Client-side render is significantly more work and changes the trust model (different rendering = different output).
+3. **PWA offline ambition (1.5)** — server-side render means an unreachable Pi can't show a preview. Current preference: keep server-side render, surface offline state honestly. Client-side render is significantly more work and changes the trust model (different rendering = different output).
 
 ---
 
