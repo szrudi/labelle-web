@@ -2,9 +2,13 @@
 
 ## Why v2
 
-v1's UI is a competent web port of the original labelle desktop GUI. With [labelle-org/labelle#45](https://github.com/labelle-org/labelle/issues/45) floating labelle-web as the future official labelle web frontend, "competent port" isn't the right bar anymore.
+v1's UI is a competent web port of the original labelle desktop GUI. v2 moves the project from "designer-first, port of the desktop GUI" toward "**template-first** label printer that happens to also have a designer", reaching that destination by way of a **mobile-first polish** of what we already have.
 
-v2 moves the project from "designer-first, port of the desktop GUI" toward "**template-first** label printer that happens to also have a designer", reaching that destination by way of a **mobile-first polish** of what we already have.
+### Relationship to upstream labelle
+
+[labelle-org/labelle](https://github.com/labelle-org/labelle) has discussed adopting an external project as an eventual official "labelle-web" ([#45](https://github.com/labelle-org/labelle/issues/45) and related issues). This repository (`szrudi/labelle-web`) shares that name accidentally — it was created and named before that upstream conversation was visible to us. It is an independent project, not a fork, and targets a slightly different audience: a Raspberry Pi as a personal label-printing appliance accessed primarily from a phone.
+
+We're not waiting on or aiming to be adopted into the upstream effort. At this point this project ships and has hardware in regular use, which puts it ahead of the candidates currently referenced upstream. The v2 plan stands on its own goals (template-first UX, mobile-first polish) regardless of how the upstream web-frontend conversation settles.
 
 ## Sequence
 
