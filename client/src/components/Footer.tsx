@@ -2,28 +2,63 @@ import { useEffect, useState } from "react";
 
 const REPO_URL = "https://github.com/szrudi/labelle-web";
 
+interface HealthInfo {
+  version: string;
+  commit?: string;
+  branch?: string;
+}
+
 export function Footer() {
+  const [health, setHealth] = useState<HealthInfo | null>(null);
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
 
+  // Read the running server's `/api/health` for the real version, branch
+  // and commit. The Vite-injected __APP_VERSION__ is a build-time
+  // fallback for the very early window before the API responds.
   useEffect(() => {
+    fetch("/api/health")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: HealthInfo | null) => {
+        if (data?.version) setHealth(data);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Only nag about a newer release when we're on a production build —
+  // dev builds are usually ahead of the latest tag, and `latest !==
+  // version` would otherwise flag every feature branch as "out of date".
+  const onMain = health?.branch === "main";
+  useEffect(() => {
+    if (!health?.version || !onMain) return;
     fetch("https://api.github.com/repos/szrudi/labelle-web/releases/latest")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!data?.tag_name) return;
         const latest = data.tag_name.replace(/^v/, "");
-        if (latest !== __APP_VERSION__) {
+        if (latest !== health.version) {
           setLatestVersion(latest);
         }
       })
       .catch(() => {});
-  }, []);
+  }, [health?.version, onMain]);
+
+  const version = health?.version ?? __APP_VERSION__;
+  const commit = health?.commit;
+  // "Dev" = anything not built from main. release.yml stamps GIT_BRANCH=main
+  // for production images, so onMain is a reliable signal.
+  const isDev = health?.branch !== undefined && !onMain;
 
   return (
     <footer className="mt-8 text-center text-xs text-gray-400">
       <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="hover:text-gray-600">
         Labelle Web
       </a>{" "}
-      v{__APP_VERSION__}
+      v{version}
+      {isDev && (
+        <span className="text-gray-500">
+          -dev{commit && ` (${commit})`}
+        </span>
+      )}
       {latestVersion && (
         <>
           {" · "}
