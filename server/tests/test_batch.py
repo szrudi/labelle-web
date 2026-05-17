@@ -36,7 +36,7 @@ def _settings():
 
 
 def _widget():
-    return {"type": "text", "text": "Hello :name:", "id": "1"}
+    return {"type": "text", "text": "Hello {{name}}", "id": "1"}
 
 
 def _read_sse(resp):
@@ -327,7 +327,7 @@ class TestBatchPrintExecution:
         assert resp.status_code == 200
         _read_sse(resp)
         call_widgets = mock_print.call_args_list[0][0][0]
-        assert call_widgets[0]["text"] == "Hello :name:"
+        assert call_widgets[0]["text"] == "Hello {{name}}"
 
     @patch("app.print_label")
     def test_empty_string_value_substitutes_as_empty(self, mock_print, client):
