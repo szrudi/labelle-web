@@ -6,8 +6,14 @@ name: Build PR image
 # NOT touch `:latest` or `:vX.Y.Z` — those remain owned by release.yml
 # and only update on merge to main with a version bump.
 #
-# On PR close (merged or not), a cleanup job deletes the `:pr-<N>`
-# image so it doesn't linger in GHCR forever.
+# Each push also sweeps the predecessor image for the same PR: we
+# capture whatever version currently holds the `:pr-<N>` tag before
+# building, then delete it after the new image has been pushed (the
+# tag has by then moved). This keeps GHCR holding only the latest
+# image per active PR, instead of accumulating one per commit.
+#
+# On PR close (merged or not), a cleanup job deletes the final
+# `:pr-<N>` image so it doesn't linger in GHCR forever.
 #
 # Fork PRs are skipped — their GITHUB_TOKEN is read-only and can't
 # push to GHCR or delete packages.
@@ -72,6 +78,28 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: echo "short=${HEAD_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
+      # Capture the version IDs currently tagged `:pr-<N>` *before*
+      # we push. After the push the tag moves to the new version, so
+      # these IDs are the predecessor(s) to delete. Normally there's
+      # exactly one; we handle a list in case a prior run left dupes.
+      - name: Find predecessor PR image versions
+        id: predecessors
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_TAG: pr-${{ github.event.pull_request.number }}
+          OWNER: ${{ github.repository_owner }}
+          PACKAGE: ${{ github.event.repository.name }}
+        run: |
+          set -eu
+          VERSIONS=$(gh api \
+            "/users/$OWNER/packages/container/$PACKAGE/versions" --paginate \
+            --jq ".[] | select(.metadata.container.tags | index(\"$PR_TAG\")) | .id" || true)
+          {
+            echo "ids<<EOF"
+            echo "$VERSIONS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Extract metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
@@ -95,6 +123,24 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
 
+      # Delete the predecessor versions we captured pre-build. Runs
+      # only after a successful push, so a failed build leaves the
+      # existing `:pr-<N>` image in place.
+      - name: Delete predecessor PR image versions
+        if: steps.predecessors.outputs.ids != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          PACKAGE: ${{ github.event.repository.name }}
+          VERSION_IDS: ${{ steps.predecessors.outputs.ids }}
+        run: |
+          set -eu
+          while IFS= read -r VERSION_ID; do
+            [ -z "$VERSION_ID" ] && continue
+            echo "Deleting predecessor version $VERSION_ID"
+            gh api -X DELETE "/users/$OWNER/packages/container/$PACKAGE/versions/$VERSION_ID"
+          done <<< "$VERSION_IDS"
+
       - name: Annotate run summary
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
@@ -113,10 +159,10 @@ jobs:
           \`\`\`
           EOF
 
-  # Delete the `:pr-<N>` image versions when the PR closes (merged or
-  # not). Old SHA-only versions left behind by superseded builds aren't
-  # explicitly cleaned here — they become untagged and can be reaped by
-  # a GHCR retention policy if needed.
+  # Delete the final `:pr-<N>` image version when the PR closes (merged
+  # or not). Predecessors are already swept by `build-and-push` on each
+  # push, so under normal conditions only one version is tagged `:pr-<N>`
+  # at close time.
   cleanup:
     if: >-
       github.event.action == 'closed' &&
