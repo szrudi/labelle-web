@@ -15,6 +15,10 @@ name: Build PR image
 # On PR close (merged or not), a cleanup job deletes the final
 # `:pr-<N>` image so it doesn't linger in GHCR forever.
 #
+# Both sweep paths also delete the per-arch image manifests and
+# provenance attestation manifests referenced by the parent — GHCR
+# does not cascade-delete them. See `.github/scripts/sweep-ghcr-versions.sh`.
+#
 # Fork PRs are skipped — their GITHUB_TOKEN is read-only and can't
 # push to GHCR or delete packages.
 
@@ -140,41 +144,42 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
 
-      # Delete only versions that were tagged `:pr-<N>` pre-build AND
-      # are no longer tagged post-push. Re-querying post-push avoids a
-      # bug where a workflow re-run on the same commit (or any push
-      # that produces an identical manifest digest) would otherwise
-      # delete the version that still carries the `:pr-<N>` tag — i.e.
-      # the only image for this PR.
-      - name: Delete superseded PR image versions
+      # Delete versions that were tagged `:pr-<N>` pre-build AND no
+      # longer hold the tag post-push, along with their per-arch and
+      # provenance child manifests (GHCR does not cascade-delete
+      # them). Re-querying post-push covers the same-digest-rebuild
+      # case where the tag stays on the same version ID — that ID is
+      # the current image and must not be touched.
+      - name: Delete superseded PR image versions (and children)
         if: steps.predecessors.outputs.ids != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_TAG: pr-${{ github.event.pull_request.number }}
           OWNER: ${{ github.repository_owner }}
           PACKAGE: ${{ github.event.repository.name }}
+          IMAGE_NAME: ${{ github.repository }}
+          GITHUB_ACTOR: ${{ github.actor }}
           PRE_IDS: ${{ steps.predecessors.outputs.ids }}
         run: |
           set -euo pipefail
-          CURRENT_IDS=$(gh api \
-            "/users/$OWNER/packages/container/$PACKAGE/versions" --paginate \
-            --jq ".[] | select(((.metadata.container.tags // []) | index(\"$PR_TAG\"))) | .id")
+          SNAPSHOT=$(mktemp --suffix=.json)
+          export SNAPSHOT
+          gh api "/users/$OWNER/packages/container/$PACKAGE/versions" --paginate \
+            --jq '[.[] | {id, name, tags: (.metadata.container.tags // [])}]' \
+            > "$SNAPSHOT"
+          jq -r --arg tag "$PR_TAG" '.[] | select(.tags | index($tag)) | .id' "$SNAPSHOT" \
+            | sort -u > /tmp/current-ids.txt
           echo "$PRE_IDS" | grep -v '^$' | sort -u > /tmp/pre-ids.txt
-          echo "$CURRENT_IDS" | grep -v '^$' | sort -u > /tmp/current-ids.txt
           if ! [ -s /tmp/pre-ids.txt ]; then
             echo "No predecessor IDs to consider"
             exit 0
           fi
-          TO_DELETE=$(comm -23 /tmp/pre-ids.txt /tmp/current-ids.txt)
-          if [ -z "$TO_DELETE" ]; then
+          PARENTS=$(comm -23 /tmp/pre-ids.txt /tmp/current-ids.txt)
+          if [ -z "$PARENTS" ]; then
             echo "No superseded versions — manifest digest unchanged across rebuild."
             exit 0
           fi
-          while IFS= read -r VERSION_ID; do
-            [ -z "$VERSION_ID" ] && continue
-            echo "Deleting superseded version $VERSION_ID"
-            gh api -X DELETE "/users/$OWNER/packages/container/$PACKAGE/versions/$VERSION_ID"
-          done <<< "$TO_DELETE"
+          echo "$PARENTS" | bash .github/scripts/sweep-ghcr-versions.sh
 
       - name: Annotate run summary
         run: |
@@ -204,27 +209,40 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       packages: write
     steps:
-      - name: Delete PR image versions
+      # Need the sweep script. Pull only the scripts dir to keep this
+      # checkout cheap on a job that otherwise touches nothing local.
+      - name: Checkout sweep script
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          sparse-checkout: .github/scripts
+
+      - name: Delete PR image versions (and children)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_TAG: pr-${{ github.event.pull_request.number }}
           OWNER: ${{ github.repository_owner }}
           PACKAGE: ${{ github.event.repository.name }}
+          IMAGE_NAME: ${{ github.repository }}
+          GITHUB_ACTOR: ${{ github.actor }}
         run: |
           set -euo pipefail
-          # Same null-safe + fail-on-non-404 pattern as the build job:
-          # if the package never existed (PR closed without a single
-          # successful build) we shrug and move on; any other error
-          # fails the job rather than silently leaving orphans.
+          # Null-safe + fail-on-non-404: a missing package (PR closed
+          # without a single successful build) is the only swallowable
+          # error; anything else fails the job rather than silently
+          # leaving orphans.
+          SNAPSHOT=$(mktemp --suffix=.json)
+          export SNAPSHOT
           ERR=$(mktemp)
           trap 'rm -f "$ERR"' EXIT
-          if VERSIONS=$(gh api \
-            "/users/$OWNER/packages/container/$PACKAGE/versions" --paginate \
-            --jq ".[] | select(((.metadata.container.tags // []) | index(\"$PR_TAG\"))) | .id" \
-            2>"$ERR"); then
-            :
+          if RAW=$(gh api \
+              "/users/$OWNER/packages/container/$PACKAGE/versions" --paginate \
+              --jq '[.[] | {id, name, tags: (.metadata.container.tags // [])}]' \
+              2>"$ERR"); then
+            echo "$RAW" > "$SNAPSHOT"
           elif grep -q "HTTP 404" "$ERR"; then
             echo "Package not found — nothing to clean up."
             exit 0
@@ -233,11 +251,9 @@ jobs:
             cat "$ERR" >&2
             exit 1
           fi
-          if [ -z "$VERSIONS" ]; then
+          PARENTS=$(jq -r --arg tag "$PR_TAG" '.[] | select(.tags | index($tag)) | .id' "$SNAPSHOT")
+          if [ -z "$PARENTS" ]; then
             echo "No versions tagged $PR_TAG to delete"
             exit 0
           fi
-          for VERSION_ID in $VERSIONS; do
-            echo "Deleting version $VERSION_ID (tag $PR_TAG)"
-            gh api -X DELETE "/users/$OWNER/packages/container/$PACKAGE/versions/$VERSION_ID"
-          done
+          echo "$PARENTS" | bash .github/scripts/sweep-ghcr-versions.sh
