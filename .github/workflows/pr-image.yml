@@ -115,11 +115,19 @@ jobs:
             cat "$ERR" >&2
             exit 1
           fi
-          {
-            echo "ids<<EOF"
-            echo "$IDS"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          # Write a truly empty value when there are no predecessors;
+          # `echo "$IDS"` would emit a stray newline, making the step
+          # output non-empty and tripping the `if: ... != ''` gate on
+          # the delete step (which would then 404 on first builds).
+          if [ -z "$IDS" ]; then
+            echo "ids=" >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "ids<<EOF"
+              echo "$IDS"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Extract metadata (tags, labels)
         id: meta
@@ -212,12 +220,15 @@ jobs:
       contents: read
       packages: write
     steps:
-      # Need the sweep script. Pull only the scripts dir to keep this
-      # checkout cheap on a job that otherwise touches nothing local.
+      # Need the sweep script. Use github.sha (the resolved ref that
+      # triggered this run) so the script always matches the workflow
+      # file we're executing — important for stacked PRs whose base
+      # branch may not yet contain the script. Sparse-checkout keeps
+      # this cheap on a job that otherwise touches nothing local.
       - name: Checkout sweep script
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.ref }}
+          ref: ${{ github.sha }}
           sparse-checkout: .github/scripts
 
       - name: Delete PR image versions (and children)
