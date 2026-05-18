@@ -79,9 +79,10 @@ jobs:
         run: echo "short=${HEAD_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
       # Capture the version IDs currently tagged `:pr-<N>` *before*
-      # we push. After the push the tag moves to the new version, so
-      # these IDs are the predecessor(s) to delete. Normally there's
-      # exactly one; we handle a list in case a prior run left dupes.
+      # we push. These are candidate predecessors; the actual delete
+      # set is `pre - post` (see the post-push step), so a re-run on
+      # the same commit (manifest digest unchanged → tag stays on the
+      # same version ID) does not delete the only image for this PR.
       - name: Find predecessor PR image versions
         id: predecessors
         env:
@@ -90,13 +91,29 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           PACKAGE: ${{ github.event.repository.name }}
         run: |
-          set -eu
-          VERSIONS=$(gh api \
+          set -euo pipefail
+          # The only expected failure here is HTTP 404 on the very
+          # first build of a brand-new PR (package doesn't exist yet).
+          # Other failures (auth/perms/rate-limit) must NOT degrade
+          # silently into "no cleanup" — they fail the job.
+          ERR=$(mktemp)
+          trap 'rm -f "$ERR"' EXIT
+          if IDS=$(gh api \
             "/users/$OWNER/packages/container/$PACKAGE/versions" --paginate \
-            --jq ".[] | select(.metadata.container.tags | index(\"$PR_TAG\")) | .id" || true)
+            --jq ".[] | select(((.metadata.container.tags // []) | index(\"$PR_TAG\"))) | .id" \
+            2>"$ERR"); then
+            :
+          elif grep -q "HTTP 404" "$ERR"; then
+            echo "Package not found yet — first build for this PR."
+            IDS=""
+          else
+            echo "::error::Listing package versions failed:"
+            cat "$ERR" >&2
+            exit 1
+          fi
           {
             echo "ids<<EOF"
-            echo "$VERSIONS"
+            echo "$IDS"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
@@ -123,23 +140,41 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
 
-      # Delete the predecessor versions we captured pre-build. Runs
-      # only after a successful push, so a failed build leaves the
-      # existing `:pr-<N>` image in place.
-      - name: Delete predecessor PR image versions
+      # Delete only versions that were tagged `:pr-<N>` pre-build AND
+      # are no longer tagged post-push. Re-querying post-push avoids a
+      # bug where a workflow re-run on the same commit (or any push
+      # that produces an identical manifest digest) would otherwise
+      # delete the version that still carries the `:pr-<N>` tag — i.e.
+      # the only image for this PR.
+      - name: Delete superseded PR image versions
         if: steps.predecessors.outputs.ids != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_TAG: pr-${{ github.event.pull_request.number }}
           OWNER: ${{ github.repository_owner }}
           PACKAGE: ${{ github.event.repository.name }}
-          VERSION_IDS: ${{ steps.predecessors.outputs.ids }}
+          PRE_IDS: ${{ steps.predecessors.outputs.ids }}
         run: |
-          set -eu
+          set -euo pipefail
+          CURRENT_IDS=$(gh api \
+            "/users/$OWNER/packages/container/$PACKAGE/versions" --paginate \
+            --jq ".[] | select(((.metadata.container.tags // []) | index(\"$PR_TAG\"))) | .id")
+          echo "$PRE_IDS" | grep -v '^$' | sort -u > /tmp/pre-ids.txt
+          echo "$CURRENT_IDS" | grep -v '^$' | sort -u > /tmp/current-ids.txt
+          if ! [ -s /tmp/pre-ids.txt ]; then
+            echo "No predecessor IDs to consider"
+            exit 0
+          fi
+          TO_DELETE=$(comm -23 /tmp/pre-ids.txt /tmp/current-ids.txt)
+          if [ -z "$TO_DELETE" ]; then
+            echo "No superseded versions — manifest digest unchanged across rebuild."
+            exit 0
+          fi
           while IFS= read -r VERSION_ID; do
             [ -z "$VERSION_ID" ] && continue
-            echo "Deleting predecessor version $VERSION_ID"
+            echo "Deleting superseded version $VERSION_ID"
             gh api -X DELETE "/users/$OWNER/packages/container/$PACKAGE/versions/$VERSION_ID"
-          done <<< "$VERSION_IDS"
+          done <<< "$TO_DELETE"
 
       - name: Annotate run summary
         run: |
@@ -178,10 +213,26 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           PACKAGE: ${{ github.event.repository.name }}
         run: |
-          set -eu
-          VERSIONS=$(gh api \
+          set -euo pipefail
+          # Same null-safe + fail-on-non-404 pattern as the build job:
+          # if the package never existed (PR closed without a single
+          # successful build) we shrug and move on; any other error
+          # fails the job rather than silently leaving orphans.
+          ERR=$(mktemp)
+          trap 'rm -f "$ERR"' EXIT
+          if VERSIONS=$(gh api \
             "/users/$OWNER/packages/container/$PACKAGE/versions" --paginate \
-            --jq ".[] | select(.metadata.container.tags | index(\"$PR_TAG\")) | .id" || true)
+            --jq ".[] | select(((.metadata.container.tags // []) | index(\"$PR_TAG\"))) | .id" \
+            2>"$ERR"); then
+            :
+          elif grep -q "HTTP 404" "$ERR"; then
+            echo "Package not found — nothing to clean up."
+            exit 0
+          else
+            echo "::error::Listing package versions failed:"
+            cat "$ERR" >&2
+            exit 1
+          fi
           if [ -z "$VERSIONS" ]; then
             echo "No versions tagged $PR_TAG to delete"
             exit 0
